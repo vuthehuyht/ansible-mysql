@@ -1,0 +1,8 @@
+[client]
+user={{ mysqld_exporter_user }}
+password={{ mysqld_exporter_password }}
+host={{ mysql_monitoring_host }}
+port={{ mysql_monitoring_port }}
+{% if mysql_monitoring_socket is defined %}
+socket={{ mysql_monitoring_socket }}
+{% endif %}

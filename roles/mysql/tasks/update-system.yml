@@ -1,0 +1,101 @@
+---
+# Tasks để cập nhật và upgrade hệ thống Ubuntu/Debian trước khi cài đặt MySQL
+
+- name: Kiểm tra OS được hỗ trợ
+  fail:
+    msg: |
+      ❌ Hệ điều hành {{ ansible_distribution }} không được hỗ trợ!
+      ✅ Project này chỉ hỗ trợ Ubuntu và Debian.
+  when: ansible_os_family != "Debian"
+
+- name: Hiển thị thông tin hệ thống trước khi cập nhật
+  debug:
+    msg: |
+      Bắt đầu cập nhật hệ thống Ubuntu/Debian:
+      - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      - Kernel: {{ ansible_kernel }}
+      - Architecture: {{ ansible_architecture }}
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  register: apt_update_result
+  retries: 3
+  delay: 10
+
+- name: Hiển thị kết quả apt update
+  debug:
+    msg: "✅ Apt cache updated successfully"
+  when: apt_update_result is succeeded
+
+- name: Hiển thị packages có thể upgrade
+  shell: apt list --upgradable 2>/dev/null | wc -l
+  register: upgradable_count
+  changed_when: false
+
+- name: Thông báo số packages sẽ upgrade
+  debug:
+    msg: "📦 Có {{ (upgradable_count.stdout | int) - 1 }} packages sẽ được upgrade"
+
+- name: Upgrade tất cả packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: apt_upgrade_result
+  async: 3600  # Timeout sau 1 giờ
+  poll: 30     # Kiểm tra mỗi 30 giây
+
+- name: Hiển thị thống kê upgrade
+  debug:
+    msg: |
+      ✅ Package upgrade completed:
+      - Changed: {{ apt_upgrade_result.changed }}
+      - Packages upgraded: {{ apt_upgrade_result.stdout_lines | length if apt_upgrade_result.stdout_lines is defined else 0 }}
+      - Duration: {{ apt_upgrade_result.delta if apt_upgrade_result.delta is defined else 'N/A' }}
+  when: apt_upgrade_result is finished
+
+- name: Kiểm tra nếu cần reboot
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required_ubuntu
+
+- name: Cảnh báo nếu cần reboot
+  debug:
+    msg: "⚠️  CẢNH BÁO: Hệ thống cần reboot sau khi upgrade! Vui lòng reboot sau khi hoàn thành cài đặt MySQL."
+  when: reboot_required_ubuntu.stat.exists
+
+# Common tasks sau khi update
+- name: Kiểm tra disk space sau khi upgrade
+  shell: df -h /
+  register: disk_space_result
+  changed_when: false
+
+- name: Hiển thị disk space
+  debug:
+    msg: |
+      Disk space after upgrade:
+      {{ disk_space_result.stdout }}
+
+- name: Tạo checkpoint trước khi cài đặt MySQL
+  shell: |
+    echo "System updated on $(date)" > /tmp/ansible-mysql-update.log
+    echo "Kernel: $(uname -r)" >> /tmp/ansible-mysql-update.log
+    echo "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}" >> /tmp/ansible-mysql-update.log
+  changed_when: false
+
+- name: Pause 10 giây để hệ thống ổn định
+  pause:
+    seconds: 10
+    prompt: "Đang chờ hệ thống ổn định sau upgrade..."
+
+- name: Thông báo hoàn thành system update
+  debug:
+    msg: |
+      ✅ Hệ thống đã được cập nhật thành công!
+      📋 Thông tin:
+      - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      - Kernel: {{ ansible_kernel }}
+      - Update log: /tmp/ansible-mysql-update.log
+      🚀 Tiếp tục cài đặt MySQL...

@@ -1,0 +1,76 @@
+---
+# Tasks để tạo cấu hình MySQL và systemd service
+
+- name: Tạo file cấu hình MySQL /etc/my.cnf
+  template:
+    src: my.cnf.j2
+    dest: /etc/my.cnf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+
+- name: Tạo thư mục /var/run/mysqld
+  file:
+    path: /var/run/mysqld
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+
+- name: Tạo systemd service file cho MySQL
+  template:
+    src: mysqld.service.j2
+    dest: /etc/systemd/system/mysqld.service
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+
+- name: Tạo mysqld_safe_helper script
+  template:
+    src: mysqld_safe_helper.j2
+    dest: "{{ mysql_install_dir }}/bin/mysqld_safe_helper"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Tạo symlink cho systemd service
+  file:
+    src: /etc/systemd/system/mysqld.service
+    dest: /etc/systemd/system/mysql.service
+    state: link
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Enable và start MySQL service
+  systemd:
+    name: mysql
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  register: mysql_service_start
+
+- name: Chờ MySQL service khởi động hoàn toàn
+  wait_for:
+    port: "{{ mysql_port }}"
+    host: 127.0.0.1
+    delay: 5
+    timeout: 60
+
+- name: Kiểm tra MySQL service status
+  systemd:
+    name: mysql
+  register: mysql_service_status
+
+- name: Hiển thị trạng thái MySQL service
+  debug:
+    msg: |
+      🔧 MySQL Service Configuration Complete:
+      - Service: {{ mysql_service_status.status.ActiveState }}
+      - Enabled: {{ mysql_service_status.status.UnitFileState }}
+      - Config: /etc/my.cnf
+      - Service file: /etc/systemd/system/mysqld.service
+      - Port: {{ mysql_port }}

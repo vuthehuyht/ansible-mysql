@@ -1,0 +1,290 @@
+---
+- name: "Deploy MySQL Monitoring Agent (mysqld_exporter)"
+  hosts: mysql_servers
+  become: yes
+  gather_facts: yes
+  
+  vars_files:
+    - group_vars/all/common.yml
+    - group_vars/all/monitoring.yml
+
+  tasks:
+    # Step 1: Validation and Prerequisites
+    - name: "🔐 Step 1: Validate MySQL Connection"
+      tags: step1
+      block:
+        - name: Check if MySQL is running
+          systemd:
+            name: mysql
+            state: started
+          register: mysql_status
+          
+        - name: Test MySQL root connection
+          mysql_info:
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+            login_host: localhost
+          register: mysql_info_result
+          
+        - name: Display MySQL version
+          debug:
+            msg: "MySQL {{ mysql_info_result.version.full }} is running"
+
+    # Step 2: Create monitoring user in MySQL
+    - name: "👤 Step 2: Setup MySQL Monitoring User"
+      tags: step2
+      block:
+        - name: Create MySQL monitoring user
+          mysql_user:
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+            login_host: localhost
+            name: "{{ mysqld_exporter_user }}"
+            password: "{{ mysqld_exporter_password }}"
+            priv: "*.*:PROCESS,REPLICATION CLIENT,SELECT"
+            host: localhost
+            state: present
+            
+        - name: Grant additional privileges for comprehensive monitoring
+          mysql_query:
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+            login_host: localhost
+            query: |
+              GRANT SELECT ON performance_schema.* TO '{{ mysqld_exporter_user }}'@'localhost';
+              GRANT SELECT ON information_schema.* TO '{{ mysqld_exporter_user }}'@'localhost';
+              FLUSH PRIVILEGES;
+
+    # Step 3: Download and Install mysqld_exporter
+    - name: "📦 Step 3: Install mysqld_exporter"
+      tags: step3
+      block:
+        - name: Create mysqld_exporter user
+          user:
+            name: "{{ mysqld_exporter_system_user }}"
+            system: yes
+            shell: /bin/false
+            home: /var/lib/mysqld_exporter
+            create_home: yes
+            
+        - name: Download mysqld_exporter
+          get_url:
+            url: "{{ mysqld_exporter_download_url }}"
+            dest: "/tmp/mysqld_exporter-{{ mysqld_exporter_version }}.linux-amd64.tar.gz"
+            mode: '0644'
+            
+        - name: Extract mysqld_exporter
+          unarchive:
+            src: "/tmp/mysqld_exporter-{{ mysqld_exporter_version }}.linux-amd64.tar.gz"
+            dest: /tmp
+            remote_src: yes
+            
+        - name: Copy mysqld_exporter binary
+          copy:
+            src: "/tmp/mysqld_exporter-{{ mysqld_exporter_version }}.linux-amd64/mysqld_exporter"
+            dest: /usr/local/bin/mysqld_exporter
+            owner: root
+            group: root
+            mode: '0755'
+            remote_src: yes
+
+    # Step 4: Configure mysqld_exporter
+    - name: "⚙️ Step 4: Configure mysqld_exporter"
+      tags: step4
+      block:
+        - name: Create mysqld_exporter config directory
+          file:
+            path: /etc/mysqld_exporter
+            state: directory
+            owner: "{{ mysqld_exporter_system_user }}"
+            group: "{{ mysqld_exporter_system_user }}"
+            mode: '0750'
+            
+        - name: Create mysqld_exporter configuration file
+          template:
+            src: templates/mysqld_exporter.cnf.j2
+            dest: /etc/mysqld_exporter/.my.cnf
+            owner: "{{ mysqld_exporter_system_user }}"
+            group: "{{ mysqld_exporter_system_user }}"
+            mode: '0600'
+          notify: restart mysqld_exporter
+          
+        - name: Create mysqld_exporter systemd service
+          template:
+            src: templates/mysqld_exporter.service.j2
+            dest: /etc/systemd/system/mysqld_exporter.service
+            owner: root
+            group: root
+            mode: '0644'
+          notify:
+            - reload systemd
+            - restart mysqld_exporter
+
+    # Step 5: Configure Firewall (if needed)
+    - name: "🔥 Step 5: Configure Firewall"
+      tags: step5
+      block:
+        - name: Check if ufw is installed
+          command: which ufw
+          register: ufw_check
+          ignore_errors: yes
+          
+        - name: Allow mysqld_exporter port through ufw
+          ufw:
+            rule: allow
+            port: "{{ mysqld_exporter_port }}"
+            proto: tcp
+            src: "{{ item }}"
+          loop: "{{ monitoring_allowed_networks }}"
+          when: ufw_check.rc == 0 and monitoring_firewall_enabled | bool
+          
+        - name: Check if firewalld is running
+          systemd:
+            name: firewalld
+          register: firewalld_status
+          ignore_errors: yes
+          
+        - name: Allow mysqld_exporter port through firewalld
+          firewalld:
+            port: "{{ mysqld_exporter_port }}/tcp"
+            permanent: yes
+            state: enabled
+            immediate: yes
+          when: firewalld_status.status is defined and firewalld_status.status.ActiveState == "active"
+
+    # Step 6: Start and Enable Services
+    - name: "🚀 Step 6: Start mysqld_exporter Service"
+      tags: step6
+      block:
+        - name: Start and enable mysqld_exporter
+          systemd:
+            name: mysqld_exporter
+            state: started
+            enabled: yes
+            daemon_reload: yes
+            
+        - name: Wait for mysqld_exporter to be ready
+          wait_for:
+            port: "{{ mysqld_exporter_port }}"
+            host: localhost
+            delay: 5
+            timeout: 30
+
+    # Step 7: Validation and Testing
+    - name: "✅ Step 7: Validate Installation"
+      tags: step7
+      block:
+        - name: Check mysqld_exporter service status
+          systemd:
+            name: mysqld_exporter
+          register: exporter_status
+          
+        - name: Test mysqld_exporter metrics endpoint
+          uri:
+            url: "http://localhost:{{ mysqld_exporter_port }}/metrics"
+            method: GET
+            status_code: 200
+          register: metrics_test
+          
+        - name: Display mysqld_exporter status
+          debug:
+            msg:
+              - "mysqld_exporter Service: {{ exporter_status.status.ActiveState }}"
+              - "Metrics Endpoint: {{ 'Working' if metrics_test.status == 200 else 'Failed' }}"
+              - "Access URL: http://{{ ansible_default_ipv4.address }}:{{ mysqld_exporter_port }}/metrics"
+              - "Monitoring User: {{ mysqld_exporter_user }}"
+
+    # Step 8: Optional - Install Node Exporter for System Metrics
+    - name: "📊 Step 8: Install Node Exporter (Optional)"
+      tags: step8
+      when: install_node_exporter | bool
+      block:
+        - name: Create node_exporter user
+          user:
+            name: node_exporter
+            system: yes
+            shell: /bin/false
+            home: /var/lib/node_exporter
+            create_home: yes
+            
+        - name: Download node_exporter
+          get_url:
+            url: "{{ node_exporter_download_url }}"
+            dest: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+            mode: '0644'
+            
+        - name: Extract node_exporter
+          unarchive:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+            dest: /tmp
+            remote_src: yes
+            
+        - name: Copy node_exporter binary
+          copy:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+            dest: /usr/local/bin/node_exporter
+            owner: root
+            group: root
+            mode: '0755'
+            remote_src: yes
+            
+        - name: Create node_exporter systemd service
+          template:
+            src: templates/node_exporter.service.j2
+            dest: /etc/systemd/system/node_exporter.service
+            owner: root
+            group: root
+            mode: '0644'
+          notify:
+            - reload systemd
+            - restart node_exporter
+            
+        - name: Start and enable node_exporter
+          systemd:
+            name: node_exporter
+            state: started
+            enabled: yes
+            daemon_reload: yes
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+        
+    - name: restart mysqld_exporter
+      systemd:
+        name: mysqld_exporter
+        state: restarted
+        
+    - name: restart node_exporter
+      systemd:
+        name: node_exporter
+        state: restarted
+
+  post_tasks:
+    - name: "🎉 Monitoring Agent Installation Complete"
+      debug:
+        msg:
+          - "=================================================="
+          - "🎉 MySQL Monitoring Agent Installation Complete!"
+          - "=================================================="
+          - ""
+          - "📊 mysqld_exporter:"
+          - "   - Status: {{ exporter_status.status.ActiveState }}"
+          - "   - Port: {{ mysqld_exporter_port }}"
+          - "   - Metrics: http://{{ ansible_default_ipv4.address }}:{{ mysqld_exporter_port }}/metrics"
+          - ""
+          - "📡 Node Exporter (if enabled):"
+          - "   - Port: {{ node_exporter_port }}"
+          - "   - Metrics: http://{{ ansible_default_ipv4.address }}:{{ node_exporter_port }}/metrics"
+          - ""
+          - "🔗 Next Steps:"
+          - "   1. Configure Prometheus server to scrape these endpoints"
+          - "   2. Import MySQL dashboard in Grafana"
+          - "   3. Setup alerting rules in Prometheus"
+          - ""
+          - "📋 Prometheus Scrape Config:"
+          - "   - job_name: 'mysql-exporter'"
+          - "     static_configs:"
+          - "       - targets: ['{{ ansible_default_ipv4.address }}:{{ mysqld_exporter_port }}']"
+          - "=================================================="

@@ -1,0 +1,37 @@
+[Unit]
+Description=Node Exporter for Prometheus
+Documentation=https://github.com/prometheus/node_exporter
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=node_exporter
+Group=node_exporter
+ExecStart=/usr/local/bin/node_exporter \
+{% for collector in node_exporter_enabled_collectors %}
+    --collector.{{ collector }} \
+{% endfor %}
+{% for collector in node_exporter_disabled_collectors %}
+    --no-collector.{{ collector }} \
+{% endfor %}
+    --web.listen-address=:{{ node_exporter_port }}
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+
+[Install]
+WantedBy=multi-user.target

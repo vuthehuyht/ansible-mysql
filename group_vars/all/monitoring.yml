@@ -1,0 +1,143 @@
+# MySQL Monitoring Configuration Variables
+# This file contains variables for deploying monitoring agents (mysqld_exporter + node_exporter)
+
+# ================================
+# mysqld_exporter Configuration
+# ================================
+mysqld_exporter_version: "0.15.1"
+mysqld_exporter_port: 9104
+mysqld_exporter_system_user: "mysqld_exporter"
+mysqld_exporter_download_url: "https://github.com/prometheus/mysqld_exporter/releases/download/v{{ mysqld_exporter_version }}/mysqld_exporter-{{ mysqld_exporter_version }}.linux-amd64.tar.gz"
+
+# MySQL monitoring user credentials
+mysqld_exporter_user: "mysql_monitor"
+mysqld_exporter_password: "MonitorPassword123!"
+
+# mysqld_exporter command line options
+mysqld_exporter_opts:
+  - "--config.my-cnf=/etc/mysqld_exporter/.my.cnf"
+  - "--collect.info_schema.processlist"
+  - "--collect.info_schema.innodb_metrics"
+  - "--collect.info_schema.tablestats"
+  - "--collect.info_schema.tables"
+  - "--collect.info_schema.userstats"
+  - "--collect.engine_innodb_status"
+  - "--collect.binlog_size"
+  - "--collect.global_status"
+  - "--collect.global_variables"
+
+# ================================
+# Node Exporter Configuration
+# ================================
+install_node_exporter: true  # Set to false if you don't want system metrics
+node_exporter_version: "1.7.0"
+node_exporter_port: 9100
+node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+
+# Node exporter collectors (customize as needed)
+node_exporter_enabled_collectors:
+  - systemd
+  - textfile
+  - filesystem
+  - diskstats
+  - netdev
+  - meminfo
+  - loadavg
+  - cpu
+
+node_exporter_disabled_collectors:
+  - arp
+  - bcache
+  - bonding
+  - conntrack
+  - entropy
+  - edac
+  - hwmon
+  - infiniband
+  - ipvs
+  - mdadm
+  - netclass
+  - netstat
+  - nfs
+  - nfsd
+  - pressure
+  - rapl
+  - schedstat
+  - sockstat
+  - thermal_zone
+  - time
+  - timex
+  - udp_queues
+  - uname
+  - vmstat
+  - wifi
+  - xfs
+  - zfs
+
+# ================================
+# Security and Network Configuration
+# ================================
+monitoring_firewall_enabled: true
+
+# Networks allowed to access monitoring endpoints
+# Add your Prometheus server IP/network here
+monitoring_allowed_networks:
+  - "192.168.1.0/24"      # Local network
+  - "10.0.0.0/8"          # Private network
+  - "172.16.0.0/12"       # Private network
+  # - "1.2.3.4/32"        # Specific Prometheus server IP
+
+# ================================
+# MySQL Connection Configuration
+# ================================
+# These should match your MySQL setup
+mysql_monitoring_socket: "/var/run/mysqld/mysqld.sock"
+mysql_monitoring_host: "localhost"
+mysql_monitoring_port: 3306
+
+# ================================
+# Advanced Monitoring Options
+# ================================
+
+# Custom metrics collection interval (seconds)
+mysqld_exporter_scrape_timeout: "10s"
+
+# Enable/disable specific metric collections
+collect_binlog_size: true
+collect_engine_innodb_status: true
+collect_engine_tokudb_status: false
+collect_global_status: true
+collect_global_variables: true
+collect_info_schema_innodb_metrics: true
+collect_info_schema_processlist: true
+collect_info_schema_tables: true
+collect_info_schema_tablestats: true
+collect_info_schema_userstats: true
+collect_perf_schema_eventswaits: false
+collect_perf_schema_file_events: false
+collect_perf_schema_indexiowaits: false
+collect_perf_schema_tableiowaits: false
+collect_perf_schema_tablelocks: false
+collect_slave_status: true
+
+# ================================
+# Alerting Thresholds (for reference)
+# ================================
+# These are reference values for setting up alerts in Prometheus
+mysql_alert_thresholds:
+  high_cpu_usage: 80          # Percentage
+  high_memory_usage: 85       # Percentage
+  slow_queries_per_sec: 10    # Count per second
+  max_connections_usage: 80   # Percentage of max_connections
+  innodb_buffer_hit_ratio: 95 # Percentage (alert if below)
+  disk_usage: 85              # Percentage
+  replica_lag: 60             # Seconds
+
+# ================================
+# Grafana Dashboard Recommendations
+# ================================
+# After installing monitoring, import these Grafana dashboards:
+# - MySQL Overview: Dashboard ID 7362
+# - MySQL Exporter Quickstart: Dashboard ID 11323
+# - Node Exporter Full: Dashboard ID 1860
+# - MySQL InnoDB Metrics: Dashboard ID 12826

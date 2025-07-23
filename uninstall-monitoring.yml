@@ -1,0 +1,67 @@
+---
+- name: "Uninstall MySQL Monitoring Agents"
+  hosts: mysql_servers
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: "🛑 Stop and disable monitoring services"
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+      loop:
+        - mysqld_exporter
+        - node_exporter
+
+    - name: "🗑️ Remove monitoring service files"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/mysqld_exporter.service
+        - /etc/systemd/system/node_exporter.service
+
+    - name: "🗑️ Remove monitoring binaries"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/mysqld_exporter
+        - /usr/local/bin/node_exporter
+
+    - name: "🗑️ Remove monitoring users"
+      user:
+        name: "{{ item }}"
+        state: absent
+        remove: yes
+      loop:
+        - mysqld_exporter
+        - node_exporter
+
+    - name: "🗑️ Remove monitoring configuration"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysqld_exporter
+        - /var/lib/mysqld_exporter
+        - /var/lib/node_exporter
+
+    - name: "🗑️ Remove MySQL monitoring user"
+      mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: localhost
+        name: "{{ mysqld_exporter_user }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: "🔄 Reload systemd daemon"
+      systemd:
+        daemon_reload: yes
+
+    - name: "✅ Monitoring agents uninstalled"
+      debug:
+        msg: "MySQL monitoring agents have been completely removed"

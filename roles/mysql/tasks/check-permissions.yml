@@ -1,0 +1,196 @@
+---
+# Tasks để kiểm tra quyền và user permissions
+
+- name: Kiểm tra user hiện tại
+  command: whoami
+  register: current_user
+  changed_when: false
+  tags: [validation, permissions]
+
+- name: Kiểm tra quyền root trực tiếp
+  command: id -u
+  register: user_id
+  changed_when: false
+  tags: [validation, permissions]
+
+- name: Kiểm tra khả năng sudo
+  command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  tags: [validation, permissions]
+
+- name: Hiển thị thông tin user và quyền
+  debug:
+    msg: |
+      👤 User Information:
+      - Current user: {{ current_user.stdout }}
+      - User ID: {{ user_id.stdout }}
+      - Is root: {{ (user_id.stdout == '0') | ternary('Yes', 'No') }}
+      - Sudo available: {{ (sudo_check.rc == 0) | ternary('Yes', 'No') }}
+      - Become method: {{ ansible_become_method | default('not configured') }}
+      - Become user: {{ ansible_become_user | default('not configured') }}
+  tags: [validation, permissions]
+
+- name: Cảnh báo nếu không phải root và không có sudo
+  fail:
+    msg: |
+      ❌ INSUFFICIENT PERMISSIONS
+      
+      📋 Current Status:
+      - User: {{ current_user.stdout }}
+      - User ID: {{ user_id.stdout }}
+      - Root access: {{ (user_id.stdout == '0') | ternary('Direct', 'No') }}
+      - Sudo access: {{ (sudo_check.rc == 0) | ternary('Available', 'Not available') }}
+      - Become configured: {{ ansible_become | default('Not configured') }}
+      
+      🔧 Solutions:
+      1. Enable passwordless sudo for user '{{ current_user.stdout }}':
+         echo "{{ current_user.stdout }} ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/{{ current_user.stdout }}
+      
+      2. Run with sudo password prompt:
+         ansible-playbook install-mysql.yml -b -K
+      
+      3. Update inventory with proper user:
+         [mysql_servers]
+         server1 ansible_host=IP ansible_user={{ current_user.stdout }} ansible_become=yes
+      
+      4. Test sudo access:
+         ansible mysql_servers -m command -a "sudo whoami"
+      
+      ⚠️  MySQL installation requires administrative privileges for:
+      - Installing system packages and dependencies
+      - Creating mysql user and group
+      - Configuring systemd services
+      - Modifying system configuration files (/etc)
+      - Setting up OS optimizations (kernel parameters)
+      - Managing firewall rules
+  when: 
+    - user_id.stdout != '0'
+    - sudo_check.rc != 0
+    - not ansible_become | default(false)
+  tags: [validation, permissions]
+
+- name: Thông báo thành công về quyền
+  debug:
+    msg: |
+      ✅ PERMISSION CHECK PASSED
+      
+      📋 Access Method:
+      {% if user_id.stdout == '0' %}
+      - Running as root user (UID 0)
+      - Direct administrative access available
+      {% elif sudo_check.rc == 0 %}
+      - Running as user '{{ current_user.stdout }}' with sudo access
+      - Will escalate privileges using sudo when needed
+      - Recommended: Enable passwordless sudo for automation
+      {% elif ansible_become | default(false) %}
+      - Running with Ansible become configured
+      - Will use '{{ ansible_become_method | default('sudo') }}' for privilege escalation
+      {% endif %}
+      
+      💡 Best Practice for Non-Root User:
+      - Ensure passwordless sudo is configured
+      - Test: ansible mysql_servers -m command -a "sudo whoami"
+      - Expected output: root
+      
+      🔧 Ready to proceed with MySQL installation
+  when: 
+    - user_id.stdout == '0' or sudo_check.rc == 0 or ansible_become | default(false)
+  tags: [validation, permissions]
+
+- name: Cảnh báo cho environment production với user thường
+  debug:
+    msg: |
+      ✅ PRODUCTION SECURITY BEST PRACTICE
+      
+      You are using a non-root user with sudo access for MySQL installation.
+      This is the RECOMMENDED security approach for production!
+      
+      🔒 Security Benefits:
+      1. ✅ Principle of least privilege
+      2. ✅ Reduced attack surface
+      3. ✅ Audit trail through sudo logs
+      4. ✅ Granular permission control
+      
+      📋 Verify Configuration:
+      1. ✅ User '{{ current_user.stdout }}' has sudo access
+      2. ✅ Passwordless sudo configured for automation
+      3. ✅ SSH key authentication (not passwords)
+      4. ✅ User has appropriate groups (sudo, admin)
+      
+      💡 Additional Security Recommendations:
+      - Limit sudo access to specific commands if possible
+      - Enable sudo logging: /var/log/auth.log
+      - Consider using dedicated MySQL service account
+      - Implement proper key rotation policies
+      
+      🔧 Permissions for MySQL Installation:
+      - Package installation: ✅ sudo apt/yum
+      - User/Group creation: ✅ sudo groupadd/useradd
+      - Service management: ✅ sudo systemctl
+      - File permissions: ✅ sudo chown/chmod
+      - OS tuning: ✅ sudo sysctl
+  when: 
+    - mysql_environment == 'prod'
+    - user_id.stdout != '0'
+    - sudo_check.rc == 0 or ansible_become | default(false)
+  tags: [validation, permissions, security]
+
+- name: Kiểm tra quyền ghi vào thư mục quan trọng
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /tmp/mysql-ansible-test
+  register: directory_test
+  failed_when: false
+  tags: [validation, permissions]
+
+- name: Dọn dẹp test directory
+  file:
+    path: /tmp/mysql-ansible-test
+    state: absent
+  tags: [validation, permissions]
+
+- name: Cảnh báo nếu không thể tạo directory
+  debug:
+    msg: |
+      ⚠️  WARNING: Directory creation test failed
+      
+      This might indicate insufficient permissions for MySQL installation.
+      Proceeding anyway, but installation might fail later.
+      
+      Consider checking filesystem permissions and disk space.
+  when: directory_test.failed | default(false)
+  tags: [validation, permissions]
+
+- name: Kiểm tra các lệnh cần thiết có sẵn không
+  command: which {{ item }}
+  register: command_check
+  failed_when: false
+  changed_when: false
+  loop:
+    - sudo
+    - systemctl
+    - wget
+    - tar
+    - groupadd
+    - useradd
+  tags: [validation, commands]
+
+- name: Báo cáo các lệnh thiếu
+  debug:
+    msg: |
+      📋 Command Availability Check:
+      {% for result in command_check.results %}
+      - {{ result.item }}: {{ (result.rc == 0) | ternary('✅ Available', '❌ Missing') }}
+      {% endfor %}
+      
+      {% if command_check.results | selectattr('rc', 'ne', 0) | list | length > 0 %}
+      ⚠️  Some required commands are missing. Installation may fail.
+      {% else %}
+      ✅ All required commands are available.
+      {% endif %}
+  tags: [validation, commands]

@@ -1,0 +1,41 @@
+---
+# Handlers cho MySQL role trên Ubuntu/Debian
+- name: restart mysql
+  systemd:
+    name: mysql
+    state: restarted
+    daemon_reload: yes
+  listen: "restart mysql"
+
+- name: reload mysql
+  systemd:
+    name: mysql
+    state: reloaded
+  listen: "reload mysql"
+
+- name: start mysql
+  systemd:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: restart chrony
+  systemd:
+    name: chrony
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+  listen: "restart chrony"
+
+- name: reload chrony
+  systemd:
+    name: chrony
+    state: reloaded
+  listen: "reload chrony"
+  listen: "start mysql"
+
+- name: stop mysql
+  systemd:
+    name: mysql
+    state: stopped
+  listen: "stop mysql"

@@ -1,0 +1,185 @@
+---
+# Tasks để tối ưu hóa Operating System cho MySQL Server
+
+- name: Cấu hình kernel parameters cho MySQL
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-mysql-tuning.conf
+  loop:
+    # Virtual Memory Management
+    - { name: 'vm.swappiness', value: '{{ mysql_swappiness }}' }
+    - { name: 'vm.dirty_ratio', value: '{{ mysql_dirty_ratio }}' }
+    - { name: 'vm.dirty_background_ratio', value: '{{ mysql_dirty_background_ratio }}' }
+    - { name: 'vm.dirty_expire_centisecs', value: '{{ mysql_dirty_expire_centisecs }}' }
+    - { name: 'vm.dirty_writeback_centisecs', value: '{{ mysql_dirty_writeback_centisecs }}' }
+    
+    # Network Performance
+    - { name: 'net.core.rmem_default', value: '{{ mysql_rmem_default }}' }
+    - { name: 'net.core.rmem_max', value: '{{ mysql_rmem_max }}' }
+    - { name: 'net.core.wmem_default', value: '{{ mysql_wmem_default }}' }
+    - { name: 'net.core.wmem_max', value: '{{ mysql_wmem_max }}' }
+    - { name: 'net.core.netdev_max_backlog', value: '{{ mysql_netdev_max_backlog }}' }
+    - { name: 'net.core.somaxconn', value: '{{ mysql_somaxconn }}' }
+    
+    # TCP Performance
+    - { name: 'net.ipv4.tcp_rmem', value: '{{ mysql_tcp_rmem }}' }
+    - { name: 'net.ipv4.tcp_wmem', value: '{{ mysql_tcp_wmem }}' }
+    - { name: 'net.ipv4.tcp_congestion_control', value: '{{ mysql_tcp_congestion_control }}' }
+    - { name: 'net.ipv4.tcp_window_scaling', value: '{{ mysql_tcp_window_scaling }}' }
+    - { name: 'net.ipv4.tcp_timestamps', value: '{{ mysql_tcp_timestamps }}' }
+    - { name: 'net.ipv4.tcp_sack', value: '{{ mysql_tcp_sack }}' }
+    
+    # File System
+    - { name: 'fs.file-max', value: '{{ mysql_fs_file_max }}' }
+    - { name: 'fs.aio-max-nr', value: '{{ mysql_fs_aio_max_nr }}' }
+  tags: [os-tuning, kernel]
+
+- name: Cấu hình system limits cho MySQL user
+  lineinfile:
+    path: /etc/security/limits.conf
+    line: "{{ item }}"
+    backup: yes
+  loop:
+    - "mysql soft nofile {{ mysql_user_soft_nofile }}"
+    - "mysql hard nofile {{ mysql_user_hard_nofile }}"
+    - "mysql soft nproc {{ mysql_user_soft_nproc }}"
+    - "mysql hard nproc {{ mysql_user_hard_nproc }}"
+    - "mysql soft memlock {{ mysql_user_soft_memlock }}"
+    - "mysql hard memlock {{ mysql_user_hard_memlock }}"
+  tags: [os-tuning, limits]
+
+- name: Tạo systemd override directory cho MySQL
+  file:
+    path: /etc/systemd/system/mysql.service.d
+    state: directory
+    mode: '0755'
+  tags: [os-tuning, systemd]
+
+- name: Cấu hình systemd overrides cho MySQL
+  copy:
+    content: |
+      [Service]
+      # Resource Limits
+      LimitNOFILE={{ mysql_systemd_limit_nofile }}
+      LimitNPROC={{ mysql_systemd_limit_nproc }}
+      LimitMEMLOCK={{ mysql_systemd_limit_memlock }}
+      
+      # CPU Scheduling
+      {% if mysql_environment == 'prod' %}
+      Nice={{ mysql_nice_priority }}
+      IOSchedulingClass={{ mysql_io_scheduling_class }}
+      IOSchedulingPriority={{ mysql_io_scheduling_priority }}
+      {% endif %}
+      
+      # Memory Management
+      {% if mysql_oom_score_adj is defined %}
+      OOMScoreAdjust={{ mysql_oom_score_adj }}
+      {% endif %}
+      
+      # Security (Production only)
+      {% if mysql_environment == 'prod' %}
+      PrivateDevices=true
+      ProtectHome=true
+      ProtectSystem=strict
+      ReadWritePaths={{ mysql_datadir }} /var/run/mysqld /tmp /var/log/mysql
+      {% endif %}
+    dest: /etc/systemd/system/mysql.service.d/override.conf
+    mode: '0644'
+  tags: [os-tuning, systemd]
+
+- name: Cấu hình I/O scheduler cho storage devices
+  shell: |
+    for device in $(lsblk -nd -o NAME | grep -E '^(sd|nvme|xvd)'); do
+      if [ -f /sys/block/$device/queue/scheduler ]; then
+        echo "{{ mysql_io_scheduler }}" > /sys/block/$device/queue/scheduler
+      fi
+    done
+  tags: [os-tuning, io-scheduler]
+  when: mysql_tune_io_scheduler | default(true)
+
+- name: Tạo persistent I/O scheduler configuration
+  copy:
+    content: |
+      # MySQL I/O Scheduler Optimization
+      # Environment: {{ mysql_environment | upper }}
+      
+      ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]n[0-9]|xvd[a-z]", ATTR{queue/scheduler}="{{ mysql_io_scheduler }}"
+      ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]n[0-9]|xvd[a-z]", ATTR{queue/read_ahead_kb}="{{ mysql_read_ahead_kb }}"
+      {% if mysql_environment == 'prod' %}
+      ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]n[0-9]|xvd[a-z]", ATTR{queue/nr_requests}="{{ mysql_nr_requests }}"
+      {% endif %}
+    dest: /etc/udev/rules.d/60-mysql-scheduler.rules
+    mode: '0644'
+  tags: [os-tuning, io-scheduler]
+
+- name: Disable transparent huge pages (THP)
+  lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="transparent_hugepage=never {{ mysql_grub_cmdline_extra | default("") }}"'
+    backup: yes
+  register: grub_config
+  tags: [os-tuning, thp]
+
+- name: Update GRUB configuration
+  command: update-grub
+  when: grub_config.changed
+  tags: [os-tuning, thp]
+
+- name: Disable THP immediately (runtime)
+  shell: |
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+  tags: [os-tuning, thp]
+
+- name: Cấu hình CPU governor cho performance
+  shell: |
+    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+      if [ -f "$cpu" ]; then
+        echo "{{ mysql_cpu_governor }}" > "$cpu"
+      fi
+    done
+  when: mysql_tune_cpu_governor | default(true) and mysql_environment == 'prod'
+  tags: [os-tuning, cpu]
+
+- name: Tạo script khởi động OS tuning
+  template:
+    src: mysql-os-tuning.sh.j2
+    dest: /etc/init.d/mysql-os-tuning
+    mode: '0755'
+  tags: [os-tuning, startup-script]
+
+- name: Enable OS tuning script at boot
+  systemd:
+    name: mysql-os-tuning
+    enabled: yes
+  tags: [os-tuning, startup-script]
+
+- name: Kiểm tra và report OS optimization status
+  shell: |
+    echo "=== MySQL OS Optimization Status ==="
+    echo "Environment: {{ mysql_environment | upper }}"
+    echo ""
+    echo "=== Kernel Parameters ==="
+    grep -E "(swappiness|dirty_ratio|rmem_max|file-max)" /proc/sys/vm/* /proc/sys/net/core/* /proc/sys/fs/* 2>/dev/null | head -10
+    echo ""
+    echo "=== System Limits ==="
+    grep mysql /etc/security/limits.conf | head -5
+    echo ""
+    echo "=== I/O Scheduler ==="
+    for dev in $(ls /sys/block/ | grep -E '^(sd|nvme|xvd)' | head -3); do
+      echo "$dev: $(cat /sys/block/$dev/queue/scheduler | grep -o '\[.*\]' | tr -d '[]')"
+    done
+    echo ""
+    echo "=== Transparent Huge Pages ==="
+    cat /sys/kernel/mm/transparent_hugepage/enabled | grep -o '\[.*\]' | tr -d '[]'
+  register: os_optimization_status
+  tags: [os-tuning, report]
+
+- name: Display OS optimization status
+  debug:
+    msg: "{{ os_optimization_status.stdout_lines }}"
+  tags: [os-tuning, report]

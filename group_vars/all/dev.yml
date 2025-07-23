@@ -1,0 +1,92 @@
+# Development Environment Variables
+# Extends common.yml with development-specific settings
+
+mysql_environment: "dev"
+selected_environment: "dev"
+
+# Development-specific timezone and NTP
+mysql_validate_timezone: false
+mysql_ntp_servers:
+  - "pool.ntp.org"
+  - "time.google.com"
+mysql_allow_ntp_clients: false
+mysql_ntp_client_network: "192.168.0.0/16"
+
+# Development OS Tuning (Relaxed for development workload)
+mysql_swappiness: 10
+mysql_dirty_ratio: 20
+mysql_dirty_background_ratio: 10
+mysql_dirty_expire_centisecs: 500
+mysql_dirty_writeback_centisecs: 100
+mysql_netdev_max_backlog: 1000
+mysql_somaxconn: 512
+mysql_rmem_max: 16777216
+mysql_wmem_max: 16777216
+mysql_tcp_rmem: "4096 87380 16777216"
+mysql_tcp_wmem: "4096 65536 16777216"
+mysql_user_soft_nofile: 8192
+mysql_user_hard_nofile: 8192
+mysql_user_soft_nproc: 4096
+mysql_user_hard_nproc: 4096
+mysql_systemd_limit_nofile: 8192
+mysql_systemd_limit_nproc: 4096
+mysql_read_ahead_kb: 128
+mysql_nr_requests: 64
+mysql_tune_cpu_governor: false
+mysql_cpu_governor: "ondemand"
+mysql_nice_priority: 0
+mysql_io_scheduling_class: 0
+mysql_io_scheduling_priority: 4
+mysql_oom_score_adj: 0
+
+# Development systemd service settings
+mysql_service_timeout: 300
+mysql_limit_nofile: 5000
+mysql_limit_nproc: 2000
+
+# Development MySQL settings (Relaxed for development)
+mysql_bind_address: "0.0.0.0"  # Allow remote connections for development
+mysql_root_password: "DevPassword123!"
+mysql_query_cache_limit: "4M"
+mysql_query_cache_size: "64M"
+mysql_query_cache_type: 1
+mysql_long_query_time: 2
+mysql_log_queries_not_using_indexes: 1
+mysql_general_log: 1  # Enable for debugging
+mysql_general_log_file: "/var/log/mysql/general.log"
+mysql_max_connections: 100
+mysql_max_user_connections: 50
+mysql_wait_timeout: 600
+mysql_interactive_timeout: 600
+mysql_innodb_buffer_pool_size: "256M"
+mysql_innodb_log_file_size: "64M"
+mysql_innodb_log_buffer_size: "16M"
+mysql_innodb_flush_log_at_trx_commit: 2  # Better performance for dev
+mysql_innodb_open_files: 300
+mysql_innodb_read_io_threads: 4
+mysql_innodb_write_io_threads: 4
+mysql_innodb_io_capacity: 200
+mysql_innodb_io_capacity_max: 400
+
+# Development databases and users
+mysql_databases:
+  - name: dev_app_db
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+  - name: dev_test_db
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+
+mysql_users:
+  - name: dev_user
+    password: "DevUser123!"
+    priv: "dev_app_db.*:ALL"
+    host: "%"  # Allow from any host for development
+  - name: test_user
+    password: "TestUser123!"
+    priv: "dev_test_db.*:ALL"
+    host: "localhost"
+
+# Development backup settings
+mysql_backup_dir: "/var/backups/mysql"
+mysql_backup_retention_days: 7

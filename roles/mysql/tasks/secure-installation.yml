@@ -1,0 +1,109 @@
+---
+# Tasks để thực hiện MySQL secure installation trên Ubuntu/Debian với binary install
+
+- name: Kiểm tra MySQL đang chạy
+  service:
+    name: mysql
+    state: started
+
+- name: Chờ MySQL service sẵn sàng
+  wait_for:
+    port: "{{ mysql_port }}"
+    host: 127.0.0.1
+    delay: 2
+    timeout: 30
+
+- name: Lấy temporary root password từ error log
+  shell: |
+    grep 'temporary password' /var/log/mysql/error.log | awk '{print $NF}' | tail -1
+  register: mysql_temp_password_from_log
+  failed_when: false
+  changed_when: false
+
+- name: Đặt MySQL root password từ temporary password
+  shell: |
+    /usr/local/mysql/bin/mysql -u root -p'{{ mysql_temp_password_from_log.stdout }}' --connect-expired-password \
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+  when: 
+    - mysql_temp_password_from_log.stdout is defined
+    - mysql_temp_password_from_log.stdout != ""
+  no_log: true
+  register: password_change_result
+  ignore_errors: yes
+
+- name: Đặt root password nếu chưa có password (fallback)
+  shell: |
+    /usr/local/mysql/bin/mysql -u root --skip-password \
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+  when: password_change_result is failed
+  no_log: true
+  ignore_errors: yes
+
+- name: Test kết nối với password mới
+  mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    query: "SELECT VERSION();"
+  register: connection_test
+  retries: 3
+  delay: 5
+
+- name: Hiển thị thông tin kết nối
+  debug:
+    msg: |
+      ✅ MySQL root password đã được thiết lập
+      🔌 Kết nối test: {{ 'SUCCESS' if connection_test is succeeded else 'FAILED' }}
+
+- name: Xóa anonymous users
+  mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Xóa test database
+  mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Không cho phép root login từ xa (chỉ localhost)
+  mysql_user:
+    name: root
+    host: "{{ item }}"
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  loop:
+    - "{{ ansible_hostname }}"
+    - "127.0.0.1"
+    - "::1"
+    - "%"
+  ignore_errors: yes
+
+- name: Đảm bảo root user chỉ có thể login từ localhost
+  mysql_user:
+    name: root
+    password: "{{ mysql_root_password }}"
+    host: localhost
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    state: present
+
+- name: Reload privilege tables
+  mysql_query:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    query: "FLUSH PRIVILEGES;"
+
+- name: Hiển thị kết quả secure installation
+  debug:
+    msg: |
+      🔒 MySQL Secure Installation Completed:
+      ✅ Root password set
+      ✅ Anonymous users removed
+      ✅ Test database removed
+      ✅ Root remote access disabled
+      ✅ Privileges reloaded

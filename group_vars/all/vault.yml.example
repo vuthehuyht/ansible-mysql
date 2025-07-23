@@ -1,0 +1,15 @@
+# This is an EXAMPLE vault file for production
+# To create actual vault file, run:
+# ansible-vault create vault.yml
+#
+# Then add these encrypted variables:
+#
+# vault_mysql_root_password: "YourSuperSecureRootPassword123!@#"
+# vault_mysql_app_password: "YourSecureAppPassword123!@#"
+# vault_mysql_readonly_password: "YourSecureReadOnlyPassword123!@#"
+#
+# Example usage:
+# ansible-vault create vault.yml
+# ansible-vault edit vault.yml
+# ansible-vault view vault.yml
+# ansible-playbook deploy-prod.yml --ask-vault-pass

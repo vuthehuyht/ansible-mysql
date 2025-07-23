@@ -1,0 +1,65 @@
+[Unit]
+Description=MySQL Community Server {{ mysql_version }}
+Documentation=man:mysqld(8)
+Documentation=http://dev.mysql.com/doc/refman/en/using-systemd.html
+After=network.target
+After=syslog.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=mysql
+Group=mysql
+Type=notify
+TimeoutSec={{ mysql_service_timeout | default(0) }}
+PermissionsStartOnly=true
+
+# Pre-execution commands
+ExecStartPre={{ mysql_install_dir }}/bin/mysqld_safe_helper
+ExecStartPre=/bin/mkdir -p /var/run/mysqld
+ExecStartPre=/bin/chown mysql:mysql /var/run/mysqld
+ExecStartPre=/bin/chmod 755 /var/run/mysqld
+
+# Main execution
+ExecStart={{ mysql_install_dir }}/bin/mysqld --defaults-file=/etc/my.cnf
+{% if mysql_environment_file is defined %}
+EnvironmentFile={{ mysql_environment_file }}
+{% else %}
+EnvironmentFile=-/etc/default/mysql
+{% endif %}
+
+# Resource limits
+LimitNOFILE={{ mysql_limit_nofile | default(10000) }}
+{% if mysql_limit_nproc is defined %}
+LimitNPROC={{ mysql_limit_nproc }}
+{% endif %}
+
+# Restart settings
+Restart={{ mysql_restart_policy | default('on-failure') }}
+RestartPreventExitStatus=1
+{% if mysql_restart_sec is defined %}
+RestartSec={{ mysql_restart_sec }}
+{% endif %}
+
+# Security settings
+PrivateTmp={{ mysql_private_tmp | default('false') }}
+{% if mysql_environment == 'prod' %}
+# Production security hardening
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mysql /var/run/mysqld /tmp
+{% elif mysql_environment == 'dev' %}
+# Development mode - relaxed security
+PrivateDevices=false
+{% endif %}
+
+# Environment specific settings
+{% if mysql_environment == 'dev' %}
+# Development: Extended timeout for debugging
+TimeoutStartSec=300
+{% elif mysql_environment == 'prod' %}
+# Production: Quick startup expected
+TimeoutStartSec=90
+{% endif %}

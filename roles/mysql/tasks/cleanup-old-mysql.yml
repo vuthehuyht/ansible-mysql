@@ -1,0 +1,244 @@
+---
+# Tasks để kiểm tra và gỡ bỏ MySQL cũ trước khi cài đặt phiên bản mới
+
+- name: Kiểm tra MySQL đã cài đặt
+  shell: |
+    dpkg -l | grep -i mysql || echo "No MySQL packages found"
+  register: existing_mysql_packages
+  changed_when: false
+
+- name: Hiển thị MySQL packages hiện có (nếu có)
+  debug:
+    msg: |
+      📦 MySQL packages hiện tại trên hệ thống:
+      {{ existing_mysql_packages.stdout_lines | join('\n') }}
+  when: "'mysql' in existing_mysql_packages.stdout.lower()"
+
+- name: Kiểm tra MySQL service đang chạy
+  systemd:
+    name: mysql
+  register: mysql_service_check
+  ignore_errors: yes
+
+- name: Hiển thị trạng thái MySQL service hiện tại
+  debug:
+    msg: |
+      🔧 MySQL service status:
+      - Exists: {{ mysql_service_check.status is defined }}
+      - Active: {{ mysql_service_check.status.ActiveState if mysql_service_check.status is defined else 'Not installed' }}
+  when: mysql_service_check.status is defined
+
+- name: Backup dữ liệu MySQL cũ (nếu có)
+  block:
+    - name: Tạo thư mục backup
+      file:
+        path: /tmp/mysql_backup_before_reinstall
+        state: directory
+        mode: '0755'
+
+    - name: Backup all databases
+      shell: |
+        mysqldump -u root -p{{ mysql_root_password | default('') }} --all-databases > /tmp/mysql_backup_before_reinstall/all-databases-$(date +%Y%m%d_%H%M%S).sql 2>/dev/null || \
+        mysqldump --all-databases > /tmp/mysql_backup_before_reinstall/all-databases-$(date +%Y%m%d_%H%M%S).sql 2>/dev/null || \
+        echo "Could not backup - MySQL may not be configured or accessible"
+      register: backup_result
+      ignore_errors: yes
+
+    - name: Hiển thị kết quả backup
+      debug:
+        msg: |
+          💾 Backup result:
+          {{ backup_result.stdout if backup_result.stdout else 'Backup failed or not needed' }}
+  when: 
+    - mysql_service_check.status is defined
+    - mysql_service_check.status.ActiveState == "active"
+
+- name: Dừng MySQL service nếu đang chạy
+  systemd:
+    name: mysql
+    state: stopped
+  ignore_errors: yes
+  when: 
+    - mysql_service_check.status is defined
+    - mysql_service_check.status.ActiveState == "active"
+
+- name: Gỡ bỏ tất cả MySQL packages
+  apt:
+    name:
+      - mysql-server
+      - mysql-server-*
+      - mysql-client
+      - mysql-client-*
+      - mysql-common
+      - mysql-community-server
+      - mysql-community-client
+      - mariadb-server
+      - mariadb-client
+      - mariadb-common
+    state: absent
+    purge: yes
+  register: mysql_removal
+  ignore_errors: yes
+
+- name: Hiển thị kết quả gỡ bỏ packages
+  debug:
+    msg: |
+      🗑️  MySQL package removal:
+      - Changed: {{ mysql_removal.changed }}
+      - Removed packages: {{ mysql_removal.stdout_lines | length if mysql_removal.stdout_lines is defined else 0 }}
+
+- name: Xóa MySQL configuration files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/mysql
+    - /etc/mysqld.conf
+    - /etc/my.cnf
+    - /etc/mysql/my.cnf
+    - /etc/mysql/mysql.conf.d
+    - /var/lib/mysql-files
+    - /var/lib/mysql-keyring
+    - /usr/local/mysql.backup.*
+  ignore_errors: yes
+
+- name: Xóa systemd service files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/mysqld.service
+    - /etc/systemd/system/mysql.service
+  ignore_errors: yes
+
+- name: Reload systemd daemon sau khi xóa services
+  systemd:
+    daemon_reload: yes
+
+- name: Kiểm tra MySQL data directory
+  stat:
+    path: /var/lib/mysql
+  register: mysql_data_dir
+
+- name: Kiểm tra MySQL binary installation
+  stat:
+    path: /usr/local/mysql
+  register: mysql_binary_install
+
+- name: Backup và xóa MySQL data directory nếu có
+  block:
+    - name: Tạo backup của data directory
+      shell: |
+        if [ -d "/var/lib/mysql" ]; then
+          tar -czf /tmp/mysql_backup_before_reinstall/mysql-data-$(date +%Y%m%d_%H%M%S).tar.gz -C /var/lib mysql/
+          echo "Data directory backed up"
+        else
+          echo "No data directory found"
+        fi
+      register: data_backup_result
+
+    - name: Hiển thị kết quả backup data
+      debug:
+        msg: "📁 {{ data_backup_result.stdout }}"
+
+    - name: Xóa MySQL data directory
+      file:
+        path: /var/lib/mysql
+        state: absent
+      when: mysql_data_dir.stat.exists
+
+  when: mysql_data_dir.stat.exists
+
+- name: Backup và xóa MySQL binary installation nếu có
+  block:
+    - name: Tạo backup của binary installation
+      shell: |
+        if [ -d "/usr/local/mysql" ]; then
+          tar -czf /tmp/mysql_backup_before_reinstall/mysql-binary-$(date +%Y%m%d_%H%M%S).tar.gz -C /usr/local mysql/
+          echo "Binary installation backed up"
+        else
+          echo "No binary installation found"
+        fi
+      register: binary_backup_result
+
+    - name: Hiển thị kết quả backup binary
+      debug:
+        msg: "📁 {{ binary_backup_result.stdout }}"
+
+    - name: Xóa MySQL binary installation
+      file:
+        path: /usr/local/mysql
+        state: absent
+      when: mysql_binary_install.stat.exists
+
+  when: mysql_binary_install.stat.exists
+
+- name: Xóa MySQL symlinks từ /usr/local/bin
+  file:
+    path: /usr/local/bin/{{ item }}
+    state: absent
+  loop:
+    - mysql
+    - mysqldump
+    - mysqladmin
+    - mysqlcheck
+  ignore_errors: yes
+
+- name: Xóa MySQL log files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/log/mysql
+    - /var/log/mysql.log
+    - /var/log/mysql.err
+    - /var/log/mysqld.log
+  ignore_errors: yes
+
+- name: Xóa MySQL user và group
+  block:
+    - name: Xóa MySQL user
+      user:
+        name: mysql
+        state: absent
+        remove: yes
+      ignore_errors: yes
+
+    - name: Xóa MySQL group
+      group:
+        name: mysql
+        state: absent
+      ignore_errors: yes
+
+- name: Làm sạch package cache
+  apt:
+    autoclean: yes
+    autoremove: yes
+
+- name: Cập nhật package database
+  apt:
+    update_cache: yes
+
+- name: Kiểm tra lại MySQL packages sau khi cleanup
+  shell: |
+    dpkg -l | grep -i mysql || echo "✅ No MySQL packages found - cleanup successful"
+  register: cleanup_verification
+  changed_when: false
+
+- name: Hiển thị kết quả cleanup
+  debug:
+    msg: |
+      🧹 CLEANUP HOÀN THÀNH
+      =====================
+      {{ cleanup_verification.stdout }}
+      
+      📋 Các files đã được backup tại:
+      - /tmp/mysql_backup_before_reinstall/
+      
+      ✅ Hệ thống đã sẵn sàng cho MySQL 8.0.42 mới
+      =====================
+
+- name: Pause để đảm bảo hệ thống ổn định
+  pause:
+    seconds: 5
+    prompt: "Chờ hệ thống ổn định sau cleanup..."

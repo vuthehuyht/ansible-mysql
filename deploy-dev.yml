@@ -1,0 +1,207 @@
+---
+# COMPLETE MYSQL 8.0.42 DEPLOYMENT FOR DEVELOPMENT ENVIRONMENT
+# This playbook contains all steps from start to finish with variables loaded from group_vars
+- name: Complete MySQL 8.0.42 Development Environment Deployment
+  hosts: mysql_servers
+  become: yes
+  become_method: sudo
+  gather_facts: yes
+  
+  vars_files:
+    - group_vars/all/common.yml
+    - group_vars/all/dev.yml
+
+  pre_tasks:
+    - name: "🚀 Starting MySQL 8.0.42 Development Deployment"
+      debug:
+        msg: |
+          ═══════════════════════════════════════════════════
+          🚀 MYSQL 8.0.42 DEVELOPMENT ENVIRONMENT DEPLOYMENT
+          ═══════════════════════════════════════════════════
+          
+          📋 Deployment Details:
+          - Environment: {{ selected_environment | upper }}
+          - MySQL Version: {{ mysql_version }}
+          - Target Servers: {{ ansible_play_hosts | length }}
+          - Installation Method: Binary from MySQL website
+          - OS Optimization: Enabled (Development profile)
+          - Time Sync: Enabled
+          - Security: Development level
+          
+          🔧 This deployment includes:
+          ✅ Permission validation
+          ✅ Time synchronization
+          ✅ OS performance tuning (development profile)
+          ✅ MySQL cleanup (if exists)
+          ✅ MySQL 8.0.42 binary installation
+          ✅ Service configuration
+          ✅ Security setup (development level)
+          ✅ Database and user creation
+          ✅ Final validation
+          
+          ⏱️  Estimated time: 10-15 minutes per server
+
+  tasks:
+    # STEP 1: Permission and Environment Validation
+    - name: "📋 STEP 1: Permission and Environment Validation"
+      include_tasks: roles/mysql/tasks/check-permissions.yml
+      tags: [step1, validation, permissions]
+
+    - name: "🕐 STEP 2: Time Synchronization Setup"
+      include_tasks: roles/mysql/tasks/sync-time.yml
+      tags: [step2, time-sync]
+
+    - name: "⚡ STEP 3: OS Performance Optimization"
+      include_tasks: roles/mysql/tasks/optimize-os.yml
+      tags: [step3, os-optimization]
+
+    - name: "🧹 STEP 4: System Updates and Cleanup"
+      include_tasks: roles/mysql/tasks/update-system.yml
+      tags: [step4, system-update]
+
+    - name: "🗑️  STEP 5: MySQL Cleanup (if exists)"
+      include_tasks: roles/mysql/tasks/cleanup-old-mysql.yml
+      tags: [step5, cleanup]
+
+    - name: "📦 STEP 6: MySQL 8.0.42 Installation"
+      include_tasks: roles/mysql/tasks/debian.yml
+      tags: [step6, installation]
+
+    - name: "⚙️  STEP 7: MySQL Configuration"
+      include_tasks: roles/mysql/tasks/configure-mysql.yml
+      tags: [step7, configuration]
+
+    - name: "🔒 STEP 8: MySQL Security Setup"
+      include_tasks: roles/mysql/tasks/secure-installation.yml
+      tags: [step8, security]
+
+    - name: "🗄️  STEP 9: Database and User Creation"
+      block:
+        - name: Create MySQL databases
+          mysql_db:
+            name: "{{ item.name }}"
+            state: present
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+            encoding: "{{ item.encoding | default(mysql_character_set) }}"
+            collation: "{{ item.collation | default(mysql_collation) }}"
+          loop: "{{ mysql_databases }}"
+          when: mysql_databases is defined and mysql_databases | length > 0
+
+        - name: Create MySQL users
+          mysql_user:
+            name: "{{ item.name }}"
+            password: "{{ item.password }}"
+            priv: "{{ item.priv | default('*.*:USAGE') }}"
+            host: "{{ item.host | default('localhost') }}"
+            state: present
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+          loop: "{{ mysql_users }}"
+          when: mysql_users is defined and mysql_users | length > 0
+      tags: [step9, database-setup]
+
+  post_tasks:
+    - name: "✅ STEP 10: Final Validation and Status Report"
+      block:
+        - name: Verify MySQL service status
+          systemd:
+            name: mysql
+          register: mysql_service_final_status
+
+        - name: Test MySQL connection
+          command: mysql -u root -p{{ mysql_root_password }} -e "SELECT VERSION();"
+          register: mysql_version_check
+          changed_when: false
+          no_log: true
+
+        - name: Check MySQL port
+          wait_for:
+            port: "{{ mysql_port }}"
+            host: "{{ ansible_default_ipv4.address }}"
+            timeout: 10
+          register: port_check
+
+        - name: Display final deployment status
+          debug:
+            msg: |
+              ✅ MYSQL 8.0.42 DEVELOPMENT DEPLOYMENT COMPLETE
+              ═══════════════════════════════════════════════════════════
+              
+              📊 Deployment Results:
+              - Server: {{ inventory_hostname }}
+              - Environment: {{ selected_environment | upper }}
+              - MySQL Version: {{ mysql_version_check.stdout | default('Unknown') }}
+              - Service Status: {{ mysql_service_final_status.status.ActiveState }}
+              - Port Status: {{ (port_check is succeeded) | ternary('✅ Open', '❌ Closed') }}
+              - Installation Path: {{ mysql_basedir }}
+              - Data Directory: {{ mysql_datadir }}
+              - Configuration: /etc/my.cnf
+              - Timezone: {{ mysql_timezone }}
+              
+              🔧 Service Information:
+              - Service Name: mysql
+              - Port: {{ mysql_port }}
+              - Socket: {{ mysql_socket }}
+              - Character Set: {{ mysql_character_set }}
+              - Bind Address: {{ mysql_bind_address }}
+              
+              🗄️  Database Setup:
+              {% if mysql_databases is defined %}
+              - Databases Created: {{ mysql_databases | map(attribute='name') | join(', ') }}
+              {% endif %}
+              {% if mysql_users is defined %}
+              - Users Created: {{ mysql_users | map(attribute='name') | join(', ') }}
+              {% endif %}
+              
+              📋 Next Steps for Development:
+              1. Connect to MySQL:
+                 mysql -u root -p{{ mysql_root_password }} -h {{ ansible_default_ipv4.address }}
+              
+              2. Test database access:
+                 mysql -u dev_user -pDevUser123! -h {{ ansible_default_ipv4.address }} dev_app_db
+              
+              3. MySQL service management:
+                 sudo systemctl status mysql
+                 sudo systemctl restart mysql
+              
+              4. Check logs:
+                 sudo tail -f /var/log/mysql/error.log
+                 sudo tail -f /var/log/mysql/slow.log
+              
+              5. Configuration file: /etc/my.cnf
+              
+              ⚠️  Development Environment Notes:
+              - This is configured for DEVELOPMENT use
+              - Root password: DevPassword123!
+              - Remote connections allowed from any host (0.0.0.0)
+              - Query logging enabled for debugging
+              - Relaxed security settings for development convenience
+              - Performance optimized for development workload
+              
+              🚀 Development MySQL server is ready for use!
+
+      rescue:
+        - name: Display deployment failure information
+          debug:
+            msg: |
+              ❌ MYSQL DEPLOYMENT FAILED
+              ═══════════════════════════════════
+              
+              Please check:
+              1. Service status: sudo systemctl status mysql
+              2. Error logs: sudo tail -50 /var/log/mysql/error.log
+              3. System logs: sudo journalctl -u mysql -n 50
+              4. Disk space: df -h
+              5. Permissions: ls -la {{ mysql_datadir }}
+              
+              Common issues:
+              - Insufficient disk space
+              - Port already in use
+              - Permission problems
+              - Configuration errors
+              
+              Run with verbose mode for more details:
+              ansible-playbook deploy-dev.yml -vvv
+
+      tags: [step10, validation, final-report]

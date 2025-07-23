@@ -1,0 +1,171 @@
+---
+# Tasks cài đặt MySQL 8.0.42 từ binary trên Ubuntu/Debian
+- name: Cập nhật apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Cài đặt các packages cần thiết
+  apt:
+    name:
+      - wget
+      - tar
+      - libaio1
+      - libnuma1
+      - python3-pymysql
+      - libmecab2
+    state: present
+
+- name: Tạo thư mục tạm để tải MySQL
+  file:
+    path: /tmp/mysql-install
+    state: directory
+    mode: '0755'
+
+- name: Tải MySQL 8.0.42 binary từ MySQL website
+  get_url:
+    url: "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.42-linux-glibc2.28-x86_64.tar.xz"
+    dest: /tmp/mysql-install/mysql-8.0.42-linux-glibc2.28-x86_64.tar.xz
+    mode: '0644'
+    timeout: 300
+  register: mysql_download
+  retries: 3
+  delay: 10
+
+- name: Hiển thị kết quả download
+  debug:
+    msg: |
+      📦 MySQL binary downloaded:
+      - Size: {{ (mysql_download.stat.size / 1024 / 1024) | round(2) if mysql_download.stat is defined else 'Unknown' }} MB
+      - Path: {{ mysql_download.dest }}
+
+- name: Kiểm tra nếu MySQL đã được cài đặt trước đó
+  stat:
+    path: /usr/local/mysql
+  register: mysql_existing_install
+
+- name: Backup MySQL cũ nếu tồn tại
+  shell: |
+    if [ -d "/usr/local/mysql" ]; then
+      mv /usr/local/mysql /usr/local/mysql.backup.$(date +%Y%m%d_%H%M%S)
+      echo "Backed up existing MySQL installation"
+    else
+      echo "No existing MySQL installation found"
+    fi
+  register: backup_result
+  when: mysql_existing_install.stat.exists
+
+- name: Hiển thị kết quả backup
+  debug:
+    msg: "{{ backup_result.stdout }}"
+  when: mysql_existing_install.stat.exists
+
+- name: Giải nén MySQL binary
+  unarchive:
+    src: /tmp/mysql-install/mysql-8.0.42-linux-glibc2.28-x86_64.tar.xz
+    dest: /tmp/mysql-install/
+    remote_src: yes
+    creates: /tmp/mysql-install/mysql-8.0.42-linux-glibc2.28-x86_64
+
+- name: Di chuyển MySQL đến /usr/local/mysql
+  shell: |
+    mv /tmp/mysql-install/mysql-8.0.42-linux-glibc2.28-x86_64 /usr/local/mysql
+    echo "MySQL moved to /usr/local/mysql"
+  args:
+    creates: /usr/local/mysql
+
+- name: Tạo MySQL group
+  group:
+    name: mysql
+    state: present
+
+- name: Tạo MySQL user
+  user:
+    name: mysql
+    group: mysql
+    system: yes
+    shell: /bin/false
+    home: /usr/local/mysql
+    create_home: no
+    state: present
+
+- name: Tạo thư mục mysql-files
+  file:
+    path: /usr/local/mysql/mysql-files
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0750'
+
+- name: Tạo thư mục data
+  file:
+    path: /usr/local/mysql/data
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0750'
+
+- name: Tạo thư mục logs
+  file:
+    path: /var/log/mysql
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+
+- name: Thiết lập quyền cho MySQL directory
+  file:
+    path: /usr/local/mysql
+    owner: mysql
+    group: mysql
+    recurse: yes
+    state: directory
+
+- name: Khởi tạo MySQL database
+  shell: |
+    cd /usr/local/mysql
+    ./bin/mysqld --initialize --user=mysql --datadir=/usr/local/mysql/data
+  register: mysql_init_result
+  args:
+    creates: /usr/local/mysql/data/mysql
+
+- name: Lấy temporary root password từ log
+  shell: |
+    grep 'temporary password' /var/log/mysql/error.log | awk '{print $NF}' | tail -1
+  register: mysql_temp_password
+  failed_when: false
+  changed_when: false
+
+- name: Hiển thị thông tin khởi tạo
+  debug:
+    msg: |
+      ✅ MySQL database initialized successfully
+      📝 Temporary root password: {{ mysql_temp_password.stdout if mysql_temp_password.stdout else 'Not found in log - will be set during secure installation' }}
+
+- name: Tạo symlink cho MySQL commands
+  file:
+    src: /usr/local/mysql/bin/{{ item }}
+    dest: /usr/local/bin/{{ item }}
+    state: link
+  loop:
+    - mysql
+    - mysqldump
+    - mysqladmin
+    - mysqlcheck
+  ignore_errors: yes
+
+- name: Cập nhật PATH trong /etc/environment
+  lineinfile:
+    path: /etc/environment
+    regexp: '^PATH='
+    line: 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/mysql/bin"'
+    backup: yes
+
+- name: Hiển thị trạng thái cài đặt
+  debug:
+    msg: |
+      🎉 MySQL 8.0.42 binary installation completed!
+      📁 Installation path: /usr/local/mysql
+      👤 MySQL user and group created
+      📊 Data directory: /usr/local/mysql/data
+      📝 Logs directory: /var/log/mysql

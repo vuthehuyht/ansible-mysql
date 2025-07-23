@@ -1,0 +1,40 @@
+# Inventory file cho MySQL servers
+# Cấu hình sử dụng user thường (NON-ROOT) với sudo privileges
+
+[mysql_servers]
+# QUAN TRỌNG: Sử dụng user thường (ubuntu, deployer, etc.) - KHÔNG PHẢI ROOT
+# User này phải có passwordless sudo access
+mysql-server-01 ansible_host=192.168.1.100 ansible_user=ubuntu ansible_become=yes
+mysql-server-02 ansible_host=192.168.1.101 ansible_user=ubuntu ansible_become=yes
+
+# Ví dụ với user khác (thay đổi theo user thực tế của server)
+# mysql-server-03 ansible_host=192.168.1.102 ansible_user=deployer ansible_become=yes
+
+[mysql_servers:vars]
+# Privilege escalation settings (SECURITY BEST PRACTICE)
+# Kết nối với user thường, sau đó sudo lên root khi cần
+ansible_become=yes                    # Enable privilege escalation
+ansible_become_method=sudo            # Use sudo method
+ansible_become_user=root              # Target user for sudo (root for installation tasks)
+
+# SSH settings
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+
+# Variables đã được di chuyển vào group_vars/all/ files
+# Không cần định nghĩa variables ở đây nữa
+
+# SSH Key Authentication (KHUYẾN NGHỊ)
+# ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+# Password Authentication (CHỈ KHI CẦN THIẾT)
+# ansible_ssh_pass=your_ssh_password
+
+# ===================================================================
+# LƯU Ý BẢO MẬT:
+# ===================================================================
+# 1. KHÔNG BAO GIỜ connect trực tiếp với user root
+# 2. Luôn sử dụng user thường + sudo (security best practice)
+# 3. User cần có passwordless sudo: echo "username ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/username
+# 4. Sử dụng SSH key thay vì password khi có thể
+# 5. MySQL passwords được quản lý trong group_vars/all/ files
+# ===================================================================

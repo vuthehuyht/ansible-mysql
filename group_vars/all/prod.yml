@@ -1,0 +1,96 @@
+# Production Environment Variables
+# Extends common.yml with production-specific settings
+
+mysql_environment: "prod"
+selected_environment: "prod"
+
+# Production-specific timezone and NTP (Strict validation)
+mysql_validate_timezone: true
+mysql_ntp_servers:
+  - "time1.google.com"
+  - "time2.google.com"
+  - "time3.google.com"
+  - "vn.pool.ntp.org"
+  - "asia.pool.ntp.org"
+mysql_allow_ntp_clients: false
+
+# Production OS Tuning (Aggressive optimization)
+mysql_swappiness: 1
+mysql_dirty_ratio: 10
+mysql_dirty_background_ratio: 3
+mysql_dirty_expire_centisecs: 300
+mysql_dirty_writeback_centisecs: 50
+mysql_rmem_max: 33554432
+mysql_wmem_max: 33554432
+mysql_netdev_max_backlog: 10000
+mysql_somaxconn: 2048
+mysql_tcp_rmem: "4096 131072 33554432"
+mysql_tcp_wmem: "4096 131072 33554432"
+mysql_user_soft_nofile: 1048576
+mysql_user_hard_nofile: 1048576
+mysql_user_soft_nproc: 65536
+mysql_user_hard_nproc: 65536
+mysql_systemd_limit_nofile: 1048576
+mysql_systemd_limit_nproc: 65536
+mysql_read_ahead_kb: 256
+mysql_nr_requests: 256
+mysql_tune_cpu_governor: true
+mysql_cpu_governor: "performance"
+mysql_nice_priority: -10
+mysql_io_scheduling_class: 1
+mysql_io_scheduling_priority: 4
+mysql_oom_score_adj: -500
+
+# Production systemd service settings
+mysql_service_timeout: 90
+mysql_limit_nofile: 65535
+mysql_limit_nproc: 32768
+
+# Production MySQL settings (Security hardened)
+mysql_bind_address: "127.0.0.1"  # Local connections only for security
+mysql_root_password: "{{ vault_mysql_root_password | default('SuperSecurePassword123!@#') }}"
+mysql_key_buffer_size: "256M"
+mysql_max_allowed_packet: "256M"
+mysql_query_cache_limit: "8M"
+mysql_query_cache_size: "256M"
+mysql_query_cache_type: 1
+mysql_long_query_time: 1
+mysql_log_queries_not_using_indexes: 0  # Disabled for performance
+mysql_general_log: 0  # Disabled for performance
+mysql_general_log_file: "/var/log/mysql/general.log"
+mysql_max_connections: 500
+mysql_max_user_connections: 450
+mysql_wait_timeout: 300
+mysql_interactive_timeout: 300
+mysql_innodb_buffer_pool_size: "2G"
+mysql_innodb_log_file_size: "256M"
+mysql_innodb_log_buffer_size: "64M"
+mysql_innodb_flush_log_at_trx_commit: 1  # Maximum durability
+mysql_innodb_open_files: 2000
+mysql_innodb_read_io_threads: 8
+mysql_innodb_write_io_threads: 8
+mysql_innodb_io_capacity: 1000
+mysql_innodb_io_capacity_max: 2000
+
+# Production databases and users (using vault for passwords)
+mysql_databases:
+  - name: production_db
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+  - name: app_db
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+
+mysql_users:
+  - name: app_user
+    password: "{{ vault_mysql_app_password | default('AppPassword123!@#') }}"
+    priv: "app_db.*:SELECT,INSERT,UPDATE,DELETE"
+    host: "localhost"  # Local access only
+  - name: readonly_user
+    password: "{{ vault_mysql_readonly_password | default('ReadOnlyPassword123!@#') }}"
+    priv: "production_db.*:SELECT"
+    host: "localhost"  # Local access only
+
+# Production backup settings
+mysql_backup_dir: "/var/backups/mysql"
+mysql_backup_retention_days: 30

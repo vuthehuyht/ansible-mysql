@@ -1,0 +1,57 @@
+# Common variables for all environments
+# These variables are shared between development and production
+
+# MySQL Core Settings
+mysql_version: "8.0.42"
+mysql_port: 3306
+mysql_socket: "/var/run/mysqld/mysqld.sock"
+mysql_basedir: "/usr/local/mysql"
+mysql_datadir: "/usr/local/mysql/data"
+mysql_secure_file_priv: "/usr/local/mysql/mysql-files"
+mysql_character_set: "utf8mb4"
+mysql_collation: "utf8mb4_unicode_ci"
+mysql_sql_mode: "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"
+mysql_install_dir: "{{ mysql_basedir }}"
+
+# Common timezone and NTP settings
+mysql_timezone: "Asia/Ho_Chi_Minh"
+mysql_ntp_service: "chrony"
+
+# Common MySQL baseline settings (can be overridden by environment)
+mysql_key_buffer_size: "16M"
+mysql_max_allowed_packet: "64M"
+mysql_thread_stack: "256K"
+mysql_thread_cache_size: 4
+mysql_myisam_recover_options: "BACKUP"
+mysql_innodb_file_per_table: 1
+mysql_innodb_flush_method: "O_DIRECT"
+mysql_innodb_doublewrite: 1
+mysql_innodb_checksums: 1
+mysql_innodb_support_xa: 1
+mysql_innodb_thread_concurrency: 0
+
+# Common OS tuning baseline
+mysql_tcp_window_scaling: 1
+mysql_tcp_timestamps: 1
+mysql_tcp_sack: 1
+mysql_tcp_congestion_control: "bbr"
+mysql_fs_file_max: 2097152
+mysql_fs_aio_max_nr: 1048576
+mysql_user_soft_memlock: unlimited
+mysql_user_hard_memlock: unlimited
+mysql_systemd_limit_memlock: infinity
+mysql_tune_io_scheduler: true
+mysql_io_scheduler: "mq-deadline"
+
+# Common systemd settings
+mysql_restart_policy: "on-failure"
+mysql_private_tmp: "true"
+mysql_restart_sec: 5
+
+# Common logging settings
+mysql_slow_query_log: 1
+mysql_slow_query_log_file: "/var/log/mysql/slow.log"
+
+# Common network settings baseline
+mysql_rmem_default: 262144
+mysql_wmem_default: 262144

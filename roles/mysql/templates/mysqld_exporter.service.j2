@@ -1,0 +1,35 @@
+[Unit]
+Description=MySQL Exporter for Prometheus
+Documentation=https://github.com/prometheus/mysqld_exporter
+After=network.target mysql.service
+Requires=mysql.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User={{ mysqld_exporter_system_user }}
+Group={{ mysqld_exporter_system_user }}
+ExecStart=/usr/local/bin/mysqld_exporter \
+{% for opt in mysqld_exporter_opts %}
+    {{ opt }} \
+{% endfor %}
+    --web.listen-address=:{{ mysqld_exporter_port }}
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mysqld_exporter
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+
+[Install]
+WantedBy=multi-user.target

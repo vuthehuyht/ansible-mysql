@@ -1,0 +1,16 @@
+# Requirements cho Ansible MySQL Project
+
+# Ansible Core
+ansible>=2.9.0
+
+# Python MySQL connector
+PyMySQL>=0.10.0
+
+# Additional helpful packages
+ansible-lint>=5.0.0  # Để kiểm tra syntax và best practices
+yamllint>=1.26.0     # Để kiểm tra YAML syntax
+
+# Optional: For advanced features
+jmespath>=0.10.0     # JSON query language
+netaddr>=0.8.0       # Network address manipulation
+requests>=2.25.0     # HTTP library

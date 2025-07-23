@@ -1,0 +1,84 @@
+---
+# Playbook để gỡ cài đặt MySQL (sử dụng cẩn thận!)
+- name: Gỡ cài đặt MySQL Server
+  hosts: mysql_servers
+  become: yes
+  gather_facts: yes
+  
+  vars_prompt:
+    - name: confirm_uninstall
+      prompt: "Bạn có chắc chắn muốn gỡ cài đặt MySQL? (yes/no)"
+      private: no
+      
+  tasks:
+    - name: Kiểm tra xác nhận
+      fail:
+        msg: "Hủy bỏ việc gỡ cài đặt MySQL"
+      when: confirm_uninstall != "yes"
+
+    - name: Kiểm tra OS được hỗ trợ
+      fail:
+        msg: |
+          ❌ Hệ điều hành {{ ansible_distribution }} không được hỗ trợ!
+          ✅ Project này chỉ hỗ trợ Ubuntu và Debian.
+      when: ansible_os_family != "Debian"
+
+    - name: Backup databases trước khi gỡ cài đặt
+      shell: |
+        mkdir -p /tmp/mysql_backup_before_uninstall
+        mysqldump -u root -p{{ mysql_root_password }} --all-databases > /tmp/mysql_backup_before_uninstall/all-databases-$(date +%Y%m%d_%H%M%S).sql
+      ignore_errors: yes
+
+    - name: Dừng MySQL service
+      systemd:
+        name: mysql
+        state: stopped
+      ignore_errors: yes
+
+    - name: Gỡ cài đặt MySQL packages
+      apt:
+        name:
+          - mysql-server
+          - mysql-client
+          - mysql-common
+        state: absent
+        purge: yes
+
+    - name: Xóa MySQL data directory
+      file:
+        path: /var/lib/mysql
+        state: absent
+      when: confirm_uninstall == "yes"
+
+    - name: Xóa MySQL log files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/log/mysql
+        - /var/log/mysqld.log
+      ignore_errors: yes
+
+    - name: Xóa MySQL configuration files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysql
+        - /etc/my.cnf
+        - /etc/mysql/my.cnf
+      ignore_errors: yes
+
+    - name: Xóa MySQL user và group
+      user:
+        name: mysql
+        state: absent
+        remove: yes
+      ignore_errors: yes
+
+    - name: Hiển thị thông báo hoàn thành
+      debug:
+        msg: |
+          MySQL đã được gỡ cài đặt thành công!
+          Backup được lưu tại: /tmp/mysql_backup_before_uninstall/
+          Vui lòng kiểm tra và sao lưu dữ liệu quan trọng.
