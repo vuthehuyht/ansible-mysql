@@ -15,9 +15,24 @@
     msg: "❌ {{ ansible_distribution }} không được hỗ trợ! Chỉ hỗ trợ Ubuntu (18.04+) và Debian (10+)"
   when: ansible_os_family != "Debian"
 
+# Ubuntu 24.04 specific compatibility check
+- name: Ubuntu 24.04 compatibility notice
+  debug:
+    msg: "ℹ️ Ubuntu 24.04 detected - using compatibility mode"
+  when: 
+    - ansible_distribution == "Ubuntu" 
+    - ansible_distribution_version == "24.04"
+
 # Pre-installation system updates
 - name: Bao gồm tasks cập nhật hệ thống
   include_tasks: update-system.yml
+
+# Ubuntu 24.04 compatibility tasks
+- name: Ubuntu 24.04 compatibility checks
+  include_tasks: ubuntu24-compat.yml
+  when: 
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version == "24.04"
 
 # Step 2: Time synchronization (critical for MySQL)
 - import_tasks: sync-time.yml

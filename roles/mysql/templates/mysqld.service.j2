@@ -45,11 +45,13 @@ RestartSec={{ mysql_restart_sec }}
 # Security settings
 PrivateTmp={{ mysql_private_tmp | default('false') }}
 {% if mysql_environment == 'prod' %}
-# Production security hardening
+# Production security hardening (compatible with Ubuntu 24.04)
 NoNewPrivileges=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/mysql /var/run/mysqld /tmp
+ReadWritePaths={{ mysql_datadir }} /var/run/mysqld /tmp /var/log/mysql
+ProtectKernelTunables=true
+ProtectControlGroups=true
 {% elif mysql_environment == 'dev' %}
 # Development mode - relaxed security
 PrivateDevices=false
@@ -62,4 +64,11 @@ TimeoutStartSec=300
 {% elif mysql_environment == 'prod' %}
 # Production: Quick startup expected
 TimeoutStartSec=90
+{% endif %}
+
+# Ubuntu 24.04 compatibility
+{% if ansible_distribution_version is defined and ansible_distribution_version == "24.04" %}
+# Additional systemd settings for Ubuntu 24.04
+ProtectHostname=true
+ProtectKernelLogs=true
 {% endif %}

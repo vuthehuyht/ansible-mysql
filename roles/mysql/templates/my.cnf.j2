@@ -3,7 +3,7 @@
 
 [mysqld]
 # Basic Settings
-user = mysql
+user = {{ mysql_user }}
 pid-file = /var/run/mysqld/mysqld.pid
 socket = {{ mysql_socket }}
 port = {{ mysql_port }}

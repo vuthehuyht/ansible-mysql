@@ -1,0 +1,44 @@
+---
+# Ubuntu 24.04 specific compatibility tasks
+
+- name: Check if running on Ubuntu 24.04
+  set_fact:
+    is_ubuntu_24: "{{ ansible_distribution == 'Ubuntu' and ansible_distribution_version == '24.04' }}"
+
+- name: Ubuntu 24.04 compatibility adjustments
+  block:
+    - name: Install additional compatibility packages for Ubuntu 24.04
+      apt:
+        name:
+          - libtinfo5
+          - libssl3
+          - libncurses5
+        state: present
+        update_cache: yes
+
+    - name: Create compatibility symlinks for Ubuntu 24.04
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        force: yes
+      loop:
+        - { src: "/usr/lib/x86_64-linux-gnu/libssl.so.3", dest: "/usr/lib/x86_64-linux-gnu/libssl.so.1.1" }
+        - { src: "/usr/lib/x86_64-linux-gnu/libcrypto.so.3", dest: "/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1" }
+      failed_when: false
+      ignore_errors: yes
+
+    - name: Adjust MySQL binary compatibility for Ubuntu 24.04
+      shell: |
+        # Check if MySQL binary needs compatibility libraries
+        ldd {{ mysql_basedir }}/bin/mysqld | grep -q "not found" && echo "COMPAT_NEEDED" || echo "COMPAT_OK"
+      register: mysql_compat_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display Ubuntu 24.04 compatibility status
+      debug:
+        msg: "🔧 Ubuntu 24.04 compatibility: {{ mysql_compat_check.stdout | default('Unknown') }}"
+
+  when: is_ubuntu_24 | bool
+  tags: [ubuntu24, compatibility]
