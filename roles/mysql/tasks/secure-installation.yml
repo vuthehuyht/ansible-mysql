@@ -50,9 +50,7 @@
 
 - name: Hiển thị thông tin kết nối
   debug:
-    msg: |
-      ✅ MySQL root password đã được thiết lập
-      🔌 Kết nối test: {{ 'SUCCESS' if connection_test is succeeded else 'FAILED' }}
+    msg: "✅ Root password set | Connection: {{ 'SUCCESS' if connection_test is succeeded else 'FAILED' }}"
 
 - name: Xóa anonymous users
   mysql_user:
@@ -100,10 +98,4 @@
 
 - name: Hiển thị kết quả secure installation
   debug:
-    msg: |
-      🔒 MySQL Secure Installation Completed:
-      ✅ Root password set
-      ✅ Anonymous users removed
-      ✅ Test database removed
-      ✅ Root remote access disabled
-      ✅ Privileges reloaded
+    msg: "🔒 MySQL Secure Installation: ✅ Password | ✅ Anonymous users | ✅ Test DB | ✅ Remote root"

@@ -2,18 +2,20 @@
 # Tasks để đồng bộ thời gian hệ thống cho MySQL
 
 - name: Kiểm tra timezone hiện tại
-  command: timedatectl show --property=Timezone --value
+  command: tim- name: Kiểm tra timezone đã được thiết lập đúng
+  fail:
+    msg: "❌ Timezone mismatch: {{ current_timezone.stdout }} ≠ {{ mysql_timezone }}"
+  when: 
+    - current_timezone.stdout != mysql_timezone
+    - mysql_validate_timezone | default(true)
+  tags: [time-sync, validation] --property=Timezone --value
   register: current_timezone
   changed_when: false
   tags: [time-sync, timezone]
 
 - name: Hiển thị thông tin thời gian hiện tại
   debug:
-    msg: |
-      🕐 Current System Time Information:
-      - Current timezone: {{ current_timezone.stdout }}
-      - Target timezone: {{ mysql_timezone }}
-      - NTP service: {{ mysql_ntp_service }}
+    msg: "🕐 Timezone: {{ current_timezone.stdout }} → {{ mysql_timezone }} | NTP: {{ mysql_ntp_service }}"
   tags: [time-sync, info]
 
 - name: Cài đặt chrony cho time synchronization
@@ -83,41 +85,13 @@
 - name: Hiển thị trạng thái time synchronization
   debug:
     msg: |
-      🕐 TIME SYNCHRONIZATION STATUS
-      ══════════════════════════════════════
-      
-      📋 System Time Information:
-      {{ timedatectl_status.stdout }}
-      
-      📡 Chrony Sources:
-      {% if chrony_sources.stdout is defined %}
-      {{ chrony_sources.stdout }}
-      {% else %}
-      Chrony sources check failed - may need time to initialize
-      {% endif %}
-      
-      ⚡ Synchronization Result:
-      {% if time_sync_result.rc == 0 %}
-      ✅ Time sync successful
-      {% else %}
-      ⚠️  Time sync may need more time to complete
-      {% endif %}
-      
-      🎯 Configuration Applied:
-      - Timezone: {{ mysql_timezone }}
-      - NTP Service: chrony
-      - Auto-sync: enabled
+      🕐 TIME SYNC: {{ time_sync_result.rc == 0 | ternary('✅ Success', '⚠️ Pending') }}
+      Timezone: {{ mysql_timezone }} | NTP: chrony enabled
   tags: [time-sync, report]
 
 - name: Cảnh báo nếu thời gian chưa đồng bộ
   debug:
-    msg: |
-      ⚠️  TIME SYNCHRONIZATION WARNING
-      
-      Time sync may not be complete yet. This is normal for first setup.
-      
-      📋 Post-installation checks:
-      1. Wait 2-3 minutes for full sync
+    msg: "⚠️ Time sync pending - wait 2-3 minutes for completion"
       2. Check status: timedatectl status
       3. Check sources: chrony sources -v
       4. Manual sync if needed: chronyc makestep

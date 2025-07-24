@@ -15,29 +15,9 @@
     - name: "🚀 Starting MySQL 8.0.42 Production Deployment"
       debug:
         msg: |
-          ═══════════════════════════════════════════════════
-          🚀 MYSQL 8.0.42 PRODUCTION ENVIRONMENT DEPLOYMENT
-          ═══════════════════════════════════════════════════
-          
-          📋 Deployment Details:
-          - Environment: {{ selected_environment | upper }}
-          - MySQL Version: {{ mysql_version }}
-          - Target Servers: {{ ansible_play_hosts | length }}
-          - Installation Method: Binary from MySQL website
-          - OS Optimization: Enabled (Production profile)
-          - Time Sync: Enabled (Strict)
-          - Security: Production hardened
-          
-          🔒 Production Security Features:
-          ✅ Encrypted password storage (Ansible Vault)
-          ✅ Local connections only (127.0.0.1)
-          ✅ Minimal user privileges
-          ✅ Enhanced system security
-          ✅ Performance optimized for production workload
-          ✅ Comprehensive logging and monitoring
-          
-          🔧 This deployment includes:
-          ✅ Permission validation
+          🚀 MYSQL 8.0.42 PRODUCTION DEPLOYMENT
+          Environment: {{ selected_environment | upper }} | Version: {{ mysql_version }}
+          Servers: {{ ansible_play_hosts | length }} | Security: Production hardened
           ✅ Time synchronization (strict)
           ✅ OS performance tuning (production profile)
           ✅ MySQL cleanup (if exists)
@@ -163,21 +143,10 @@
           debug:
             msg: |
               ✅ MYSQL 8.0.42 PRODUCTION DEPLOYMENT COMPLETE
-              ═══════════════════════════════════════════════════════════
               
-              📊 Deployment Results:
-              - Server: {{ inventory_hostname }}
-              - Environment: {{ selected_environment | upper }}
-              - MySQL Version: {{ mysql_version_check.stdout | default('Unknown') }}
-              - Service Status: {{ mysql_service_final_status.status.ActiveState }}
-              - Port Status: {{ (port_check is succeeded) | ternary('✅ Open (localhost)', '❌ Closed') }}
-              - Installation Path: {{ mysql_basedir }}
-              - Data Directory: {{ mysql_datadir }}
-              - Configuration: /etc/my.cnf
-              - Timezone: {{ mysql_timezone }}
-              
-              🔒 Security Configuration:
-              - Bind Address: {{ mysql_bind_address }} (localhost only)
+              Server: {{ inventory_hostname }} | Environment: {{ selected_environment | upper }}
+              Version: {{ mysql_version_check.stdout | default('Unknown') }}
+              Service: {{ mysql_service_final_status.status.ActiveState }} | Security: localhost only
               - Root Access: Local only
               - User Privileges: Minimal required permissions
               - Password Storage: Ansible Vault encrypted

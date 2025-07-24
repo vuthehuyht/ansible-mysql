@@ -14,8 +14,8 @@
   file:
     path: /var/run/mysqld
     state: directory
-    owner: mysql
-    group: mysql
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     mode: '0755'
 
 - name: Tạo systemd service file cho MySQL
@@ -67,10 +67,4 @@
 
 - name: Hiển thị trạng thái MySQL service
   debug:
-    msg: |
-      🔧 MySQL Service Configuration Complete:
-      - Service: {{ mysql_service_status.status.ActiveState }}
-      - Enabled: {{ mysql_service_status.status.UnitFileState }}
-      - Config: /etc/my.cnf
-      - Service file: /etc/systemd/system/mysqld.service
-      - Port: {{ mysql_port }}
+    msg: "🔧 MySQL Service: {{ mysql_service_status.status.ActiveState }} | {{ mysql_service_status.status.UnitFileState }} | Port {{ mysql_port }}"

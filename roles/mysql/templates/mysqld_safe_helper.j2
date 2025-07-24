@@ -5,12 +5,12 @@
 
 # Create runtime directory
 mkdir -p /var/run/mysqld
-chown mysql:mysql /var/run/mysqld
+chown {{ mysql_user }}:{{ mysql_group }} /var/run/mysqld
 chmod 755 /var/run/mysqld
 
 # Create log directory if not exists
 mkdir -p /var/log/mysql
-chown mysql:mysql /var/log/mysql
+chown {{ mysql_user }}:{{ mysql_group }} /var/log/mysql
 chmod 755 /var/log/mysql
 
 {% if mysql_environment == 'dev' %}

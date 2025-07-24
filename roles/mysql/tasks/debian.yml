@@ -34,10 +34,7 @@
 
 - name: Hiển thị kết quả download
   debug:
-    msg: |
-      📦 MySQL binary downloaded:
-      - Size: {{ (mysql_download.stat.size / 1024 / 1024) | round(2) if mysql_download.stat is defined else 'Unknown' }} MB
-      - Path: {{ mysql_download.dest }}
+    msg: "📦 MySQL binary: {{ (mysql_download.stat.size / 1024 / 1024) | round(2) if mysql_download.stat is defined else 'Unknown' }} MB"
 
 - name: Kiểm tra nếu MySQL đã được cài đặt trước đó
   stat:
@@ -76,58 +73,58 @@
 
 - name: Tạo MySQL group
   group:
-    name: mysql
+    name: "{{ mysql_group }}"
     state: present
 
 - name: Tạo MySQL user
   user:
-    name: mysql
-    group: mysql
+    name: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     system: yes
     shell: /bin/false
-    home: /usr/local/mysql
+    home: "{{ mysql_basedir }}"
     create_home: no
     state: present
 
 - name: Tạo thư mục mysql-files
   file:
-    path: /usr/local/mysql/mysql-files
+    path: "{{ mysql_basedir }}/mysql-files"
     state: directory
-    owner: mysql
-    group: mysql
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     mode: '0750'
 
 - name: Tạo thư mục data
   file:
-    path: /usr/local/mysql/data
+    path: "{{ mysql_datadir }}"
     state: directory
-    owner: mysql
-    group: mysql
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     mode: '0750'
 
 - name: Tạo thư mục logs
   file:
     path: /var/log/mysql
     state: directory
-    owner: mysql
-    group: mysql
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     mode: '0755'
 
 - name: Thiết lập quyền cho MySQL directory
   file:
-    path: /usr/local/mysql
-    owner: mysql
-    group: mysql
+    path: "{{ mysql_basedir }}"
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     recurse: yes
     state: directory
 
 - name: Khởi tạo MySQL database
   shell: |
-    cd /usr/local/mysql
-    ./bin/mysqld --initialize --user=mysql --datadir=/usr/local/mysql/data
+    cd {{ mysql_basedir }}
+    ./bin/mysqld --initialize --user={{ mysql_user }} --datadir={{ mysql_datadir }}
   register: mysql_init_result
   args:
-    creates: /usr/local/mysql/data/mysql
+    creates: "{{ mysql_datadir }}/mysql"
 
 - name: Lấy temporary root password từ log
   shell: |
@@ -138,13 +135,11 @@
 
 - name: Hiển thị thông tin khởi tạo
   debug:
-    msg: |
-      ✅ MySQL database initialized successfully
-      📝 Temporary root password: {{ mysql_temp_password.stdout if mysql_temp_password.stdout else 'Not found in log - will be set during secure installation' }}
+    msg: "✅ MySQL initialized | Root password: {{ mysql_temp_password.stdout if mysql_temp_password.stdout else 'Set during secure installation' }}"
 
 - name: Tạo symlink cho MySQL commands
   file:
-    src: /usr/local/mysql/bin/{{ item }}
+    src: "{{ mysql_basedir }}/bin/{{ item }}"
     dest: /usr/local/bin/{{ item }}
     state: link
   loop:
@@ -158,14 +153,9 @@
   lineinfile:
     path: /etc/environment
     regexp: '^PATH='
-    line: 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/mysql/bin"'
+    line: 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{{ mysql_basedir }}/bin"'
     backup: yes
 
 - name: Hiển thị trạng thái cài đặt
   debug:
-    msg: |
-      🎉 MySQL 8.0.42 binary installation completed!
-      📁 Installation path: /usr/local/mysql
-      👤 MySQL user and group created
-      📊 Data directory: /usr/local/mysql/data
-      📝 Logs directory: /var/log/mysql
+    msg: "🎉 MySQL 8.0.42 installed: {{ mysql_basedir }} | Data: {{ mysql_datadir }}"

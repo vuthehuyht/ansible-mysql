@@ -18,9 +18,7 @@
 
     - name: Kiểm tra OS được hỗ trợ
       fail:
-        msg: |
-          ❌ Hệ điều hành {{ ansible_distribution }} không được hỗ trợ!
-          ✅ Project này chỉ hỗ trợ Ubuntu và Debian.
+        msg: "❌ {{ ansible_distribution }} không được hỗ trợ! Chỉ hỗ trợ Ubuntu/Debian."
       when: ansible_os_family != "Debian"
 
     - name: Backup databases trước khi gỡ cài đặt
@@ -78,7 +76,4 @@
 
     - name: Hiển thị thông báo hoàn thành
       debug:
-        msg: |
-          MySQL đã được gỡ cài đặt thành công!
-          Backup được lưu tại: /tmp/mysql_backup_before_uninstall/
-          Vui lòng kiểm tra và sao lưu dữ liệu quan trọng.
+        msg: "✅ MySQL uninstalled | Backup: /tmp/mysql_backup_before_uninstall/"

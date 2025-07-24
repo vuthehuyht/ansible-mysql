@@ -9,8 +9,8 @@ After=syslog.target
 WantedBy=multi-user.target
 
 [Service]
-User=mysql
-Group=mysql
+User={{ mysql_user }}
+Group={{ mysql_group }}
 Type=notify
 TimeoutSec={{ mysql_service_timeout | default(0) }}
 PermissionsStartOnly=true
@@ -18,7 +18,7 @@ PermissionsStartOnly=true
 # Pre-execution commands
 ExecStartPre={{ mysql_install_dir }}/bin/mysqld_safe_helper
 ExecStartPre=/bin/mkdir -p /var/run/mysqld
-ExecStartPre=/bin/chown mysql:mysql /var/run/mysqld
+ExecStartPre=/bin/chown {{ mysql_user }}:{{ mysql_group }} /var/run/mysqld
 ExecStartPre=/bin/chmod 755 /var/run/mysqld
 
 # Main execution

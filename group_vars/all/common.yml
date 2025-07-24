@@ -13,6 +13,10 @@ mysql_collation: "utf8mb4_unicode_ci"
 mysql_sql_mode: "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"
 mysql_install_dir: "{{ mysql_basedir }}"
 
+# MySQL System User and Group
+mysql_user: "mysql"
+mysql_group: "mysql"
+
 # Common timezone and NTP settings
 mysql_timezone: "Asia/Ho_Chi_Minh"
 mysql_ntp_service: "chrony"

@@ -15,29 +15,9 @@
     - name: "🚀 Starting MySQL 8.0.42 Development Deployment"
       debug:
         msg: |
-          ═══════════════════════════════════════════════════
-          🚀 MYSQL 8.0.42 DEVELOPMENT ENVIRONMENT DEPLOYMENT
-          ═══════════════════════════════════════════════════
-          
-          📋 Deployment Details:
-          - Environment: {{ selected_environment | upper }}
-          - MySQL Version: {{ mysql_version }}
-          - Target Servers: {{ ansible_play_hosts | length }}
-          - Installation Method: Binary from MySQL website
-          - OS Optimization: Enabled (Development profile)
-          - Time Sync: Enabled
-          - Security: Development level
-          
-          🔧 This deployment includes:
-          ✅ Permission validation
-          ✅ Time synchronization
-          ✅ OS performance tuning (development profile)
-          ✅ MySQL cleanup (if exists)
-          ✅ MySQL 8.0.42 binary installation
-          ✅ Service configuration
-          ✅ Security setup (development level)
-          ✅ Database and user creation
-          ✅ Final validation
+          🚀 MYSQL 8.0.42 DEVELOPMENT DEPLOYMENT
+          Environment: {{ selected_environment | upper }} | Version: {{ mysql_version }}
+          Servers: {{ ansible_play_hosts | length }} | Method: Binary installation
           
           ⏱️  Estimated time: 10-15 minutes per server
 
@@ -126,48 +106,12 @@
           debug:
             msg: |
               ✅ MYSQL 8.0.42 DEVELOPMENT DEPLOYMENT COMPLETE
-              ═══════════════════════════════════════════════════════════
               
-              📊 Deployment Results:
-              - Server: {{ inventory_hostname }}
-              - Environment: {{ selected_environment | upper }}
-              - MySQL Version: {{ mysql_version_check.stdout | default('Unknown') }}
-              - Service Status: {{ mysql_service_final_status.status.ActiveState }}
-              - Port Status: {{ (port_check is succeeded) | ternary('✅ Open', '❌ Closed') }}
-              - Installation Path: {{ mysql_basedir }}
-              - Data Directory: {{ mysql_datadir }}
-              - Configuration: /etc/my.cnf
-              - Timezone: {{ mysql_timezone }}
+              Server: {{ inventory_hostname }} | Environment: {{ selected_environment | upper }}
+              Version: {{ mysql_version_check.stdout | default('Unknown') }}
+              Service: {{ mysql_service_final_status.status.ActiveState }} | Port: {{ (port_check is succeeded) | ternary('✅', '❌') }}
               
-              🔧 Service Information:
-              - Service Name: mysql
-              - Port: {{ mysql_port }}
-              - Socket: {{ mysql_socket }}
-              - Character Set: {{ mysql_character_set }}
-              - Bind Address: {{ mysql_bind_address }}
-              
-              🗄️  Database Setup:
-              {% if mysql_databases is defined %}
-              - Databases Created: {{ mysql_databases | map(attribute='name') | join(', ') }}
-              {% endif %}
-              {% if mysql_users is defined %}
-              - Users Created: {{ mysql_users | map(attribute='name') | join(', ') }}
-              {% endif %}
-              
-              📋 Next Steps for Development:
-              1. Connect to MySQL:
-                 mysql -u root -p{{ mysql_root_password }} -h {{ ansible_default_ipv4.address }}
-              
-              2. Test database access:
-                 mysql -u dev_user -pDevUser123! -h {{ ansible_default_ipv4.address }} dev_app_db
-              
-              3. MySQL service management:
-                 sudo systemctl status mysql
-                 sudo systemctl restart mysql
-              
-              4. Check logs:
-                 sudo tail -f /var/log/mysql/error.log
-                 sudo tail -f /var/log/mysql/slow.log
+              Connection: mysql -u root -p{{ mysql_root_password }} -h {{ ansible_default_ipv4.address }}
               
               5. Configuration file: /etc/my.cnf
               

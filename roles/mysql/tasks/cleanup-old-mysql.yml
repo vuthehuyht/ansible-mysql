@@ -9,9 +9,7 @@
 
 - name: Hiển thị MySQL packages hiện có (nếu có)
   debug:
-    msg: |
-      📦 MySQL packages hiện tại trên hệ thống:
-      {{ existing_mysql_packages.stdout_lines | join('\n') }}
+    msg: "📦 Found MySQL packages: {{ existing_mysql_packages.stdout_lines | length }} items"
   when: "'mysql' in existing_mysql_packages.stdout.lower()"
 
 - name: Kiểm tra MySQL service đang chạy
@@ -22,10 +20,7 @@
 
 - name: Hiển thị trạng thái MySQL service hiện tại
   debug:
-    msg: |
-      🔧 MySQL service status:
-      - Exists: {{ mysql_service_check.status is defined }}
-      - Active: {{ mysql_service_check.status.ActiveState if mysql_service_check.status is defined else 'Not installed' }}
+    msg: "🔧 MySQL service: {{ mysql_service_check.status.ActiveState if mysql_service_check.status is defined else 'Not installed' }}"
   when: mysql_service_check.status is defined
 
 - name: Backup dữ liệu MySQL cũ (nếu có)
@@ -46,9 +41,7 @@
 
     - name: Hiển thị kết quả backup
       debug:
-        msg: |
-          💾 Backup result:
-          {{ backup_result.stdout if backup_result.stdout else 'Backup failed or not needed' }}
+        msg: "💾 Backup: {{ backup_result.stdout if backup_result.stdout else 'Failed or not needed' }}"
   when: 
     - mysql_service_check.status is defined
     - mysql_service_check.status.ActiveState == "active"
@@ -82,10 +75,7 @@
 
 - name: Hiển thị kết quả gỡ bỏ packages
   debug:
-    msg: |
-      🗑️  MySQL package removal:
-      - Changed: {{ mysql_removal.changed }}
-      - Removed packages: {{ mysql_removal.stdout_lines | length if mysql_removal.stdout_lines is defined else 0 }}
+    msg: "🗑️ Removed {{ mysql_removal.stdout_lines | length if mysql_removal.stdout_lines is defined else 0 }} packages"
 
 - name: Xóa MySQL configuration files
   file:

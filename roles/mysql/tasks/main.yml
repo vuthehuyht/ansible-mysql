@@ -12,12 +12,7 @@
 # Kiểm tra OS được hỗ trợ
 - name: Kiểm tra hệ điều hành được hỗ trợ
   fail:
-    msg: |
-      ❌ Hệ điều hành {{ ansible_distribution }} không được hỗ trợ!
-      ✅ Project này chỉ hỗ trợ Ubuntu và Debian.
-      📋 Các phiên bản được hỗ trợ:
-      - Ubuntu: 18.04, 20.04, 22.04, 24.04
-      - Debian: 10, 11, 12
+    msg: "❌ {{ ansible_distribution }} không được hỗ trợ! Chỉ hỗ trợ Ubuntu (18.04+) và Debian (10+)"
   when: ansible_os_family != "Debian"
 
 # Pre-installation system updates
@@ -63,8 +58,8 @@
   template:
     src: my.cnf.j2
     dest: /etc/mysql/mysql.conf.d/custom.cnf
-    owner: root
-    group: root
+    owner: "{{ mysql_user }}"
+    group: "{{ mysql_group }}"
     mode: '0644'
     backup: yes
   notify: restart mysql

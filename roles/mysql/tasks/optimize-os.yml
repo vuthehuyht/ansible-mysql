@@ -160,22 +160,11 @@
 
 - name: Kiểm tra và report OS optimization status
   shell: |
-    echo "=== MySQL OS Optimization Status ==="
-    echo "Environment: {{ mysql_environment | upper }}"
-    echo ""
-    echo "=== Kernel Parameters ==="
-    grep -E "(swappiness|dirty_ratio|rmem_max|file-max)" /proc/sys/vm/* /proc/sys/net/core/* /proc/sys/fs/* 2>/dev/null | head -10
-    echo ""
-    echo "=== System Limits ==="
-    grep mysql /etc/security/limits.conf | head -5
-    echo ""
-    echo "=== I/O Scheduler ==="
-    for dev in $(ls /sys/block/ | grep -E '^(sd|nvme|xvd)' | head -3); do
-      echo "$dev: $(cat /sys/block/$dev/queue/scheduler | grep -o '\[.*\]' | tr -d '[]')"
-    done
-    echo ""
-    echo "=== Transparent Huge Pages ==="
-    cat /sys/kernel/mm/transparent_hugepage/enabled | grep -o '\[.*\]' | tr -d '[]'
+    echo "=== MySQL OS Optimization ({{ mysql_environment | upper }}) ==="
+    echo "Swappiness: $(cat /proc/sys/vm/swappiness)"
+    echo "I/O Scheduler: $(cat /sys/block/*/queue/scheduler | grep -o '\[.*\]' | tr -d '[]' | head -1)"
+    echo "THP: $(cat /sys/kernel/mm/transparent_hugepage/enabled | grep -o '\[.*\]' | tr -d '[]')"
+    echo "MySQL limits: $(grep mysql /etc/security/limits.conf | wc -l) rules"
   register: os_optimization_status
   tags: [os-tuning, report]
 

@@ -3,18 +3,12 @@
 
 - name: Kiểm tra OS được hỗ trợ
   fail:
-    msg: |
-      ❌ Hệ điều hành {{ ansible_distribution }} không được hỗ trợ!
-      ✅ Project này chỉ hỗ trợ Ubuntu và Debian.
+    msg: "❌ {{ ansible_distribution }} không được hỗ trợ! Chỉ hỗ trợ Ubuntu/Debian."
   when: ansible_os_family != "Debian"
 
 - name: Hiển thị thông tin hệ thống trước khi cập nhật
   debug:
-    msg: |
-      Bắt đầu cập nhật hệ thống Ubuntu/Debian:
-      - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      - Kernel: {{ ansible_kernel }}
-      - Architecture: {{ ansible_architecture }}
+    msg: "🔄 Updating {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_architecture }})"
 
 - name: Update apt cache
   apt:
@@ -49,11 +43,7 @@
 
 - name: Hiển thị thống kê upgrade
   debug:
-    msg: |
-      ✅ Package upgrade completed:
-      - Changed: {{ apt_upgrade_result.changed }}
-      - Packages upgraded: {{ apt_upgrade_result.stdout_lines | length if apt_upgrade_result.stdout_lines is defined else 0 }}
-      - Duration: {{ apt_upgrade_result.delta if apt_upgrade_result.delta is defined else 'N/A' }}
+    msg: "✅ Upgrade completed: {{ apt_upgrade_result.stdout_lines | length if apt_upgrade_result.stdout_lines is defined else 0 }} packages"
   when: apt_upgrade_result is finished
 
 - name: Kiểm tra nếu cần reboot
@@ -74,9 +64,7 @@
 
 - name: Hiển thị disk space
   debug:
-    msg: |
-      Disk space after upgrade:
-      {{ disk_space_result.stdout }}
+    msg: "💾 Disk space: {{ disk_space_result.stdout.split('\n')[0] if disk_space_result.stdout else 'Unknown' }}"
 
 - name: Tạo checkpoint trước khi cài đặt MySQL
   shell: |
@@ -92,10 +80,4 @@
 
 - name: Thông báo hoàn thành system update
   debug:
-    msg: |
-      ✅ Hệ thống đã được cập nhật thành công!
-      📋 Thông tin:
-      - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-      - Kernel: {{ ansible_kernel }}
-      - Update log: /tmp/ansible-mysql-update.log
-      🚀 Tiếp tục cài đặt MySQL...
+    msg: "✅ System updated | {{ ansible_distribution }} {{ ansible_distribution_version }} | Ready for MySQL"
